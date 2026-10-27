@@ -220,8 +220,8 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
             <Smartphone className="h-5 w-5" />
             <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Alertas WhatsApp</span>
           </div>
-          <div className="text-3xl font-extrabold text-white">100%</div>
-          <p className="text-xs text-slate-400 mt-1">Notificações no celular sem depender de app</p>
+          <div className="text-3xl font-extrabold text-white">24/7</div>
+          <p className="text-xs text-slate-400 mt-1">Avisos no WhatsApp a qualquer hora sem depender de app</p>
         </div>
       </section>
 

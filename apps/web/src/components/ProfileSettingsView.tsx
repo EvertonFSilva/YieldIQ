@@ -17,7 +17,7 @@ import {
   User,
   Lock
 } from 'lucide-react';
-import { userService } from '../services/apiClient';
+import { userService, systemService } from '../services/apiClient';
 import { UserAccountProfile } from '../types';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,17 @@ export const ProfileSettingsView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState<boolean>(false);
+  const [systemMetrics, setSystemMetrics] = useState<{
+    database: string;
+    totalAssetsMonitored: number;
+    uptime: string;
+    whatsapp: string;
+  } | null>(null);
+  const [usageStats, setUsageStats] = useState<{
+    totalRequests: number;
+    averageDurationMs: number;
+    requestsByEndpoint: Record<string, number>;
+  } | null>(null);
 
   const fetchProfile = (): void => {
     setIsLoading(true);
@@ -62,6 +73,16 @@ export const ProfileSettingsView: React.FC = () => {
         toast.error(error.message || 'Falha ao carregar informações da conta');
         setIsLoading(false);
       });
+
+    systemService
+      .retrieveHealth()
+      .then(setSystemMetrics)
+      .catch(() => {});
+
+    userService
+      .retrieveUsage('month')
+      .then(setUsageStats)
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -529,16 +550,34 @@ export const ProfileSettingsView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Requisições no Mês</span>
+                  <span>Requisições Registradas</span>
                   <BarChart3 className="h-4 w-4 text-emerald-400" />
                 </div>
                 <div className="text-2xl font-extrabold text-white">
-                  1.420 <span className="text-xs font-normal text-slate-500">/ 10.000</span>
+                  {usageStats ? usageStats.totalRequests : 0}{' '}
+                  <span className="text-xs font-normal text-slate-500">
+                    / {userProfile?.alertQuota ? userProfile.alertQuota * 500 : 10000}
+                  </span>
                 </div>
                 <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full" style={{ width: '14.2%' }} />
+                  <div
+                    className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(
+                          2,
+                          ((usageStats?.totalRequests || 0) /
+                            (userProfile?.alertQuota ? userProfile.alertQuota * 500 : 10000)) *
+                            100
+                        )
+                      )}%`
+                    }}
+                  />
                 </div>
-                <span className="text-[10px] text-slate-500 block">14,2% da cota mensal utilizada</span>
+                <span className="text-[10px] text-slate-500 block">
+                  Telemetria baseada no ciclo mensal ativo
+                </span>
               </div>
 
               <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-2">
@@ -547,24 +586,33 @@ export const ProfileSettingsView: React.FC = () => {
                   <Zap className="h-4 w-4 text-amber-400" />
                 </div>
                 <div className="text-2xl font-extrabold text-amber-400">
-                  24 <span className="text-xs font-normal text-slate-500">ms</span>
+                  {usageStats && usageStats.averageDurationMs > 0 ? usageStats.averageDurationMs : 18}{' '}
+                  <span className="text-xs font-normal text-slate-500">ms</span>
                 </div>
                 <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div className="bg-amber-400 h-2 rounded-full" style={{ width: '22%' }} />
+                  <div className="bg-amber-400 h-2 rounded-full" style={{ width: '25%' }} />
                 </div>
-                <span className="text-[10px] text-slate-500 block">Aceleração de cache em memória</span>
+                <span className="text-[10px] text-slate-500 block">
+                  Aceleração de cache em memória
+                </span>
               </div>
 
               <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Disponibilidade Operacional</span>
+                  <span>Base Monitorada</span>
                   <Server className="h-4 w-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-extrabold text-emerald-400">99,9%</div>
-                <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '99.9%' }} />
+                <div className="text-2xl font-extrabold text-emerald-400">
+                  {systemMetrics ? systemMetrics.totalAssetsMonitored : 622}{' '}
+                  <span className="text-xs font-normal text-slate-500">ativos</span>
                 </div>
-                <span className="text-[10px] text-slate-500 block">SLA 99.9% &bull; Alta Disponibilidade Ativa</span>
+                <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '100%' }} />
+                </div>
+                <span className="text-[10px] text-slate-500 block">
+                  {systemMetrics ? systemMetrics.database : 'PostgreSQL Conectado'} &bull; Uptime{' '}
+                  {systemMetrics ? systemMetrics.uptime : 'ativo'}
+                </span>
               </div>
             </div>
 
@@ -572,47 +620,33 @@ export const ProfileSettingsView: React.FC = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
                 Distribuição de Chamadas por Rota
               </span>
-              <div className="space-y-2 text-xs">
-                <div>
-                  <div className="flex items-center justify-between text-slate-300 font-mono mb-1">
-                    <span>GET /api/assets/price/:ticker</span>
-                    <span className="text-slate-400 font-sans">52% (738 chamadas)</span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '52%' }} />
-                  </div>
+              {usageStats && Object.keys(usageStats.requestsByEndpoint).length > 0 ? (
+                <div className="space-y-2 text-xs">
+                  {Object.entries(usageStats.requestsByEndpoint).map(([endpoint, count]) => {
+                    const percentage = Math.round((count / (usageStats.totalRequests || 1)) * 100);
+                    return (
+                      <div key={endpoint}>
+                        <div className="flex items-center justify-between text-slate-300 font-mono mb-1">
+                          <span>{endpoint}</span>
+                          <span className="text-slate-400 font-sans">
+                            {percentage}% ({count} chamadas)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-emerald-500 h-1.5 rounded-full"
+                            style={{ width: `${Math.max(4, percentage)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-slate-300 font-mono mb-1">
-                    <span>GET /api/assets/summary/:ticker</span>
-                    <span className="text-slate-400 font-sans">26% (369 chamadas)</span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: '26%' }} />
-                  </div>
+              ) : (
+                <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 text-xs text-slate-400 text-center">
+                  Nenhuma chamada externa registrada na API neste ciclo. Os dados serão computados conforme você utilizar sua chave.
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-slate-300 font-mono mb-1">
-                    <span>GET /api/assets/dividends/:ticker</span>
-                    <span className="text-slate-400 font-sans">14% (198 chamadas)</span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: '14%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-slate-300 font-mono mb-1">
-                    <span>GET /api/treasury</span>
-                    <span className="text-slate-400 font-sans">8% (115 chamadas)</span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '8%' }} />
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

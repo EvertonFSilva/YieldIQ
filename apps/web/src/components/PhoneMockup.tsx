@@ -1,245 +1,320 @@
-import React, { useState, useEffect } from 'react';
-import {
-  CheckCheck,
-  Wifi,
-  Battery,
-  Signal
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, Wifi, Battery, Signal, CheckCheck } from 'lucide-react';
 
-interface PhoneAlertMessage {
+interface PhoneAlertItem {
   id: string;
-  category: 'dividend' | 'price' | 'report' | 'bazin' | 'treasury';
-  label: string;
+  ticker: string;
+  badge: string;
   badgeColor: string;
-  title: string;
+  accentColor: string;
   time: string;
-  content: string[];
-  footerNote?: string;
+  title: string;
+  lines: string[];
 }
 
 export const PhoneMockup: React.FC = () => {
-  const [selectedAlertIndex, setSelectedAlertIndex] = useState<number>(0);
-  const [isTyping, setIsTyping] = useState<boolean>(false);
-
-  const alertExamples: PhoneAlertMessage[] = [
+  const alertPool: PhoneAlertItem[] = [
     {
-      id: 'div-mxrf',
-      category: 'dividend',
-      label: 'Proventos',
-      badgeColor: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-      title: '💰 Anúncio de Provento Oficial',
-      time: '18:02',
-      content: [
-        'O ativo MXRF11 aprovou novos rendimentos na B3.',
-        '• Valor por cota: R$ 0,10',
-        '• Data de corte (Com): 31/10/2026',
-        '• Data de pagamento: 14/11/2026',
-        '• Dividend Yield do mês: 1,02%',
-        '• Yield Anualizado (12M): 12,95% a.a.'
-      ],
-      footerNote: 'Fonte: Escriturador BTG Pactual & B3'
+      id: 'craa-price',
+      ticker: 'CRAA11',
+      badge: 'Queda de Preço 📉',
+      badgeColor: 'border-rose-500/30 text-rose-400 bg-rose-500/10',
+      accentColor: '#fb7185',
+      time: '10:01',
+      title: '⚠️ Alerta de Preço: CRAA11',
+      lines: [
+        'O ativo CRAA11 caiu -2,12%.',
+        '💰 Cotação atual: R$ 88,20',
+        '📊 Cotação de abertura: R$ 90,11',
+        '⬆️ Cotação máxima do dia: R$ 90,50',
+        '📈 Média Dividend Yield (12M): 1,02% ao mês'
+      ]
     },
     {
-      id: 'price-hglg',
-      category: 'price',
-      label: 'Oscilação',
-      badgeColor: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-      title: '⚠️ Alerta de Degrau de Preço',
-      time: '14:25',
-      content: [
-        'O ativo HGLG11 atingiu a meta de oscilação (-2,15%).',
-        '• Preço Atual: R$ 151,70',
-        '• Abertura do dia: R$ 155,00',
-        '• Mínima / Máxima: R$ 151,10 - R$ 155,40',
-        '• Volume negociado: R$ 12,4M',
-        '• Preço Teto Bazin calibrado: R$ 178,00'
-      ],
-      footerNote: 'Alerta disparado pela regra de degrau'
+      id: 'craa-dividend',
+      ticker: 'CRAA11',
+      badge: 'Novo Rendimento 💰',
+      badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+      accentColor: '#34d399',
+      time: '10:02',
+      title: '💰 CRAA11 anunciou rendimentos',
+      lines: [
+        '✅ Valor: R$ 0,90 por cota',
+        '📅 Data com: 31/07/2026',
+        '📆 Pagamento: 14/08/2026',
+        '💰 Preço atual: R$ 88,20',
+        '📈 Dividend Yield: 1,02%'
+      ]
     },
     {
-      id: 'report-xpml',
-      category: 'report',
-      label: 'Fato Relevante',
-      badgeColor: 'border-blue-500/30 bg-blue-500/10 text-blue-400',
+      id: 'ggrc-report',
+      ticker: 'GGRC11',
+      badge: 'Fato Relevante 📄',
+      badgeColor: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
+      accentColor: '#60a5fa',
+      time: '10:03',
       title: '📣 Fato Relevante CVM FNet',
-      time: '19:15',
-      content: [
-        'O fundo XPML11 publicou novo comunicado ao mercado.',
-        '• Protocolo CVM: #1343560',
-        '• Tipo: Relatório Gerencial / Aquisição',
-        '• Assunto: Conclusão de aquisição de 25% do Shopping Cidade Jardim.',
-        '• Impacto estimado no resultado: +R$ 0,07/cota'
-      ],
-      footerNote: 'Documento original disponível na CVM'
+      lines: [
+        'O ativo GGRC11 publicou um novo documento oficial.',
+        '📄 Tipo de Documento: Aviso aos Cotistas',
+        '🏛️ Protocolo CVM FNet: #139824'
+      ]
     },
     {
-      id: 'bazin-btlg',
-      category: 'bazin',
-      label: 'Preço Teto',
-      badgeColor: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-      title: '🎯 Oportunidade Décio Bazin',
-      time: '11:40',
-      content: [
-        'O ativo BTLG11 entrou em faixa de oportunidade Bazin.',
-        '• Preço Atual: R$ 100,73',
-        '• Preço Teto Calculado (6%): R$ 110,50',
-        '• Margem de Segurança: +9,70%',
-        '• Dividendo acumulado 12M: R$ 6,63/cota',
-        '• Status do algoritmo: COMPRA RECOMENDADA'
-      ],
-      footerNote: 'Critério Bazin com margem de segurança positiva'
+      id: 'hglg-gordon',
+      ticker: 'HGLG11',
+      badge: 'Oportunidade Gordon 🎯',
+      badgeColor: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+      accentColor: '#fbbf24',
+      time: '10:04',
+      title: '🎯 Oportunidade (Método Gordon)',
+      lines: [
+        'O teto do HGLG11 está em R$ 165,20.',
+        '💰 Preço atual: R$ 147,00 (Abaixo do teto).',
+        'Isso indica margem de segurança na renda e na cota.'
+      ]
     },
     {
-      id: 'treasury-ipca',
-      category: 'treasury',
-      label: 'Tesouro Direto',
-      badgeColor: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
+      id: 'btlg-bazin',
+      ticker: 'BTLG11',
+      badge: 'Abaixo do Teto Bazin 💡',
+      badgeColor: 'border-teal-500/30 text-teal-400 bg-teal-500/10',
+      accentColor: '#2dd4bf',
+      time: '10:05',
+      title: '🎯 Oportunidade (Método Bazin)',
+      lines: [
+        'O teto do BTLG11 está em R$ 110,50.',
+        '💰 Preço atual: R$ 100,73 (Abaixo do teto).',
+        'Oportunidade de dividendos acima de 6% ao ano.'
+      ]
+    },
+    {
+      id: 'treasury-rate',
+      ticker: 'Tesouro IPCA+',
+      badge: 'Taxa Atualizada 🔄',
+      badgeColor: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+      accentColor: '#c084fc',
+      time: '10:06',
       title: '🏛️ Oscilação de Taxa do Tesouro',
-      time: '10:10',
-      content: [
-        'Abertura oficial do Tesouro Direto com nova taxa.',
-        '• Título: Tesouro IPCA+ 2035',
-        '• Taxa anterior: IPCA + 6,25% a.a.',
-        '• Nova taxa oficial: IPCA + 6,65% a.a.',
-        '• Preço Unitário: R$ 2.980,20',
-        '• Meta de rendimento real alcançada!'
-      ],
-      footerNote: 'Dados oficiais Secretaria do Tesouro Nacional'
+      lines: [
+        '🏛️ Título: Tesouro IPCA+ 2035',
+        '📉 Taxa anterior: IPCA + 6,20% a.a.',
+        '📈 Nova Taxa: IPCA + 6,05% a.a.',
+        '⏳ Valor anterior: R$ 2.975,10',
+        '💰 Preço Atual: R$ 2.980,20'
+      ]
+    },
+    {
+      id: 'xpml-report',
+      ticker: 'XPML11',
+      badge: 'Relatório CVM 📊',
+      badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+      accentColor: '#34d399',
+      time: '10:07',
+      title: '📊 Novo Documento Gerencial',
+      lines: [
+        'O ativo XPML11 publicou um novo Relatório Gerencial.',
+        '📄 Período de apuração referente ao mês corrente.',
+        '📈 Rendimento projetado mantido com liquidez recorde.'
+      ]
     }
   ];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setIsTyping(true);
-      setTimeout(() => {
-        setSelectedAlertIndex((prev) => (prev + 1) % alertExamples.length);
-        setIsTyping(false);
-      }, 1200);
-    }, 6000);
-    return () => clearInterval(timer);
-  }, [alertExamples.length]);
+  const [visibleMessages, setVisibleMessages] = useState<PhoneAlertItem[]>([alertPool[0], alertPool[1]]);
+  const [nextIndex, setNextIndex] = useState<number>(2);
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [activeChip, setActiveChip] = useState<PhoneAlertItem>(alertPool[1]);
+  const feedScrollRef = useRef<HTMLDivElement>(null);
 
-  const handleSelectAlert = (index: number): void => {
-    if (index === selectedAlertIndex) return;
+  useEffect(() => {
+    if (feedScrollRef.current) {
+      feedScrollRef.current.scrollTop = feedScrollRef.current.scrollHeight;
+    }
+  }, [visibleMessages, isTyping]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsTyping(true);
+
+      setTimeout(() => {
+        const itemToAdd = alertPool[nextIndex % alertPool.length];
+        setVisibleMessages((prev) => {
+          const updated = [...prev, itemToAdd];
+          if (updated.length > 5) {
+            return updated.slice(updated.length - 5);
+          }
+          return updated;
+        });
+        setActiveChip(itemToAdd);
+        setNextIndex((prev) => prev + 1);
+        setIsTyping(false);
+      }, 1400);
+    }, 6500);
+
+    return () => clearInterval(interval);
+  }, [nextIndex, alertPool]);
+
+  const handleManualPush = (item: PhoneAlertItem): void => {
     setIsTyping(true);
     setTimeout(() => {
-      setSelectedAlertIndex(index);
+      setVisibleMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== item.id);
+        const updated = [...filtered, item];
+        if (updated.length > 5) {
+          return updated.slice(updated.length - 5);
+        }
+        return updated;
+      });
+      setActiveChip(item);
       setIsTyping(false);
-    }, 800);
+    }, 600);
   };
 
-  const currentAlert = alertExamples[selectedAlertIndex];
-
   return (
-    <div className="relative mx-auto w-full max-w-[340px] sm:max-w-[360px] select-none">
-      <div className="relative rounded-[48px] border-[5px] border-slate-700/80 bg-slate-950 p-3 shadow-2xl shadow-emerald-500/10 ring-1 ring-slate-800">
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 h-5 w-28 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-between px-3 z-30">
-          <div className="h-2.5 w-2.5 rounded-full bg-slate-950 border border-slate-800" />
-          <div className="h-2 w-2 rounded-full bg-emerald-500/30" />
+    <div className="relative mx-auto flex items-center justify-center p-2 sm:p-6 select-none max-w-full">
+      <div
+        className="hidden xl:block absolute -top-4 -left-12 z-20 pointer-events-none transition-all duration-500"
+        style={{
+          transform: 'translateY(-4px)'
+        }}
+      >
+        <div className="flex items-center gap-2 rounded-full border border-indigo-400/30 bg-slate-900/90 px-3.5 py-1.5 shadow-2xl backdrop-blur-md">
+          <span
+            className="w-2 h-2 rounded-full shadow-md"
+            style={{
+              backgroundColor: activeChip.accentColor,
+              boxShadow: `0 0 10px ${activeChip.accentColor}`
+            }}
+          />
+          <span className="text-[11px] font-bold text-slate-200 whitespace-nowrap">
+            {activeChip.ticker} &bull; {activeChip.badge}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="hidden xl:block absolute -bottom-4 -right-10 z-20 pointer-events-none transition-all duration-500"
+        style={{
+          transform: 'translateY(4px)'
+        }}
+      >
+        <div className="flex items-center gap-2 rounded-full border border-emerald-400/30 bg-slate-900/90 px-3.5 py-1.5 shadow-2xl backdrop-blur-md">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-md shadow-emerald-400" />
+          <span className="text-[11px] font-bold text-emerald-300 whitespace-nowrap">
+            WhatsApp Oficial &bull; 24/7 Ativo
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="landing-phone relative w-[340px] max-w-full rounded-[52px] p-[14px]"
+        style={{
+          background: 'linear-gradient(160deg, #141c2b, #060911)',
+          border: '1px solid rgba(147, 165, 255, 0.42)',
+          boxShadow: '0 30px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(148, 163, 184, 0.16)'
+        }}
+      >
+        <span className="absolute top-[88px] -left-[2px] w-[4px] h-[26px] rounded-[3px] bg-slate-700/80" />
+        <span className="absolute top-[132px] -left-[2px] w-[4px] h-[44px] rounded-[3px] bg-slate-700/80" />
+        <span className="absolute top-[132px] -right-[2px] w-[4px] h-[70px] rounded-[3px] bg-slate-700/80" />
+
+        <div className="absolute top-[17px] left-1/2 -translate-x-1/2 w-[118px] h-[26px] bg-black rounded-[14px] z-30 border border-[#141b28] flex items-center justify-between px-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
+          <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
         </div>
 
-        <div className="relative h-[560px] rounded-[38px] bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 border border-slate-850 overflow-hidden flex flex-col justify-between">
-          <div className="pt-2 px-5 pb-1 flex items-center justify-between text-[11px] font-semibold text-slate-300 z-20">
-            <span>09:41</span>
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <Signal className="h-3 w-3" />
-              <Wifi className="h-3 w-3" />
-              <Battery className="h-3.5 w-3.5 text-emerald-400" />
+        <div className="bg-[#0c1219] border border-slate-700/60 rounded-[39px] overflow-hidden relative">
+          <div className="flex justify-between items-end pt-4 px-6 pb-2 text-[12px] text-white font-bold">
+            <span>10:30</span>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <Signal className="w-3.5 h-3.5" />
+              <Wifi className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1">
+                <Battery className="w-4 h-4 text-emerald-400" />
+                <span className="text-[10px] text-emerald-400 font-bold">100%</span>
+              </div>
             </div>
           </div>
 
-          <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-10">
-            <div className="flex items-center gap-2.5">
-              <div className="relative">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shadow-emerald-500/20">
-                  YQ
-                </div>
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-slate-900" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white leading-none">YieldIQ Oficial</span>
-                  <span className="h-3.5 w-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold">
-                    ✓
-                  </span>
-                </div>
-                <span className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
-                  {isTyping ? (
-                    <span className="animate-pulse font-medium">digitando...</span>
-                  ) : (
-                    <span className="text-slate-400">online</span>
-                  )}
+          <div className="flex items-center gap-2.5 px-4 py-3 bg-[#141c2b] border-b border-indigo-500/20">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
+              <Bell className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-bold text-sm truncate flex items-center gap-1.5">
+                <span>YieldIQ Alertas</span>
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">
+                  ✓
                 </span>
               </div>
+              <div className="text-slate-400 text-[11px] truncate">Alertas oficiais em tempo real</div>
             </div>
-
-            <div className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              B3 • CVM
-            </div>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 live-dot shadow-sm" />
           </div>
 
-          <div className="flex-1 p-3.5 space-y-3 overflow-y-auto flex flex-col justify-end">
-            <div className="mx-auto rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1 text-[10px] text-slate-400">
-              Hoje &bull; Alertas Instantâneos WhatsApp
+          <div
+            ref={feedScrollRef}
+            className="phone-alert-scroll h-[440px] overflow-y-auto p-3 flex flex-col gap-2.5 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-transparent to-transparent"
+          >
+            <div className="mx-auto rounded-full bg-slate-900/90 border border-slate-800 px-3 py-0.5 text-[10px] text-slate-400 font-medium">
+              Hoje &bull; Mensagens Criptografadas
             </div>
 
-            <div className="rounded-2xl border-l-4 border-l-emerald-500 border border-slate-800 bg-slate-900/90 p-3.5 shadow-lg space-y-2 transition-all duration-300">
-              <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  {currentAlert.title}
-                </span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${currentAlert.badgeColor}`}>
-                  {currentAlert.label}
-                </span>
-              </div>
-
-              <div className="space-y-1 text-[11px] text-slate-300 leading-relaxed font-mono">
-                {currentAlert.content.map((line, idx) => (
-                  <p key={idx} className={idx === 0 ? 'text-slate-200 font-sans font-semibold mb-1' : ''}>
-                    {line}
-                  </p>
-                ))}
-              </div>
-
-              <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-                <span>{currentAlert.footerNote}</span>
-                <div className="flex items-center gap-1 text-emerald-400">
-                  <span>{currentAlert.time}</span>
-                  <CheckCheck className="h-3.5 w-3.5" />
+            {visibleMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className="wa-msg self-start max-w-[96%] rounded-[14px_14px_14px_4px] p-3 text-[12px] leading-relaxed shadow-md"
+                style={{
+                  backgroundColor: 'rgba(14, 35, 63, 0.92)',
+                  borderLeft: `3px solid ${msg.accentColor}`
+                }}
+              >
+                <div className="font-bold text-white mb-1.5 flex items-center justify-between gap-1">
+                  <span>{msg.title}</span>
+                </div>
+                <div className="space-y-1 text-slate-200">
+                  {msg.lines.map((ln, idx) => (
+                    <div key={idx} className={idx === 0 ? 'font-medium text-white' : 'text-slate-300'}>
+                      {ln}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-end gap-1 mt-1.5 text-[10px] text-slate-400">
+                  <span>{msg.time}</span>
+                  <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
               </div>
-            </div>
+            ))}
 
             {isTyping && (
-              <div className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 border border-slate-800 px-3.5 py-2 text-emerald-400 w-fit animate-pulse">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" />
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:0.2s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:0.4s]" />
-                <span className="text-[10px] text-slate-400 ml-1 font-sans">YieldIQ digitando alerta...</span>
+              <div
+                className="wa-typing self-start rounded-[14px_14px_14px_4px] px-3.5 py-2.5 flex items-center gap-1.5 shadow-md"
+                style={{ backgroundColor: 'rgba(14, 35, 63, 0.92)' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 typing-dot" />
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 typing-dot" />
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 typing-dot" />
+                <span className="text-[11px] text-slate-400 ml-1 font-medium">digitando alerta...</span>
               </div>
             )}
           </div>
 
-          <div className="p-2.5 bg-slate-900/90 border-t border-slate-800/80 backdrop-blur-md space-y-2">
-            <span className="text-[10px] text-slate-400 font-semibold block text-center">
-              Alternar Exemplo de Alerta:
-            </span>
-            <div className="flex items-center justify-between gap-1">
-              {alertExamples.map((alert, idx) => (
+          <div className="p-2 bg-[#141c2b]/90 border-t border-slate-800">
+            <div className="flex items-center justify-between gap-1 overflow-x-auto pb-0.5">
+              {alertPool.slice(0, 5).map((item) => (
                 <button
-                  key={alert.id}
-                  onClick={() => handleSelectAlert(idx)}
-                  className={`flex-1 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-200 truncate ${
-                    selectedAlertIndex === idx
-                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
-                      : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
-                  }`}
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleManualPush(item)}
+                  className="px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-white hover:border-slate-700 transition shrink-0"
                 >
-                  {alert.label}
+                  {item.ticker}
                 </button>
               ))}
             </div>
           </div>
+
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-28 h-1 rounded-full bg-white/70 pointer-events-none" />
         </div>
       </div>
     </div>

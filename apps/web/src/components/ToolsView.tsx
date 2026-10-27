@@ -452,7 +452,27 @@ export const ToolsView: React.FC = () => {
     }>
   >([]);
   const [selectedEarningsYear, setSelectedEarningsYear] = useState<number | 'all'>('all');
+  const [earningsViewTab, setEarningsViewTab] = useState<'consolidated' | 'detailed'>('consolidated');
+  const [collapsedYears, setCollapsedYears] = useState<Record<number, boolean>>({});
   const [isProcessingEarnings, setIsProcessingEarnings] = useState<boolean>(false);
+
+  const parseDateValue = (v: any): Date | null => {
+    if (!v) return null;
+    if (typeof v === 'number') {
+      return new Date(Math.round((v - 25569) * 86400 * 1000));
+    }
+    const s = String(v).trim();
+    if (s.indexOf('-') > 0) {
+      const p = s.split('-');
+      if (p.length === 3) return new Date(+p[0], +p[1] - 1, +p[2]);
+    }
+    if (s.indexOf('/') > 0) {
+      const p = s.split('/');
+      if (p.length === 3) return new Date(+p[2], +p[1] - 1, +p[0]);
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
   const handleProcessExcelFile = async (file: File): Promise<void> => {
     setIsProcessingEarnings(true);
@@ -462,6 +482,37 @@ export const ToolsView: React.FC = () => {
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawRows: any[] = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
+      if (!rawRows || rawRows.length === 0) {
+        toast.warning('O arquivo está vazio ou não possui registros legíveis.');
+        return;
+      }
+
+      const cols = Object.keys(rawRows[0]);
+      const colCheck = (s: string) => cols.some((c) => c.toLowerCase().includes(s.toLowerCase()));
+
+      if (
+        !colCheck('produto') ||
+        !colCheck('movimenta') ||
+        !colCheck('data') ||
+        !colCheck('valor') ||
+        !colCheck('quantidade')
+      ) {
+        toast.error(
+          `Colunas esperadas da B3: Produto, Movimentação, Data, Valor da Operação, Quantidade. Encontradas: ${cols.join(', ')}`
+        );
+        return;
+      }
+
+      const colMap: Record<string, string> = {};
+      cols.forEach((c) => {
+        const lc = c.toLowerCase();
+        if (lc.includes('produto')) colMap.produto = c;
+        else if (lc.includes('movimenta')) colMap.movimentacao = c;
+        else if (lc.includes('data') || lc.includes('date')) colMap.data = c;
+        else if (lc.includes('valor') || lc.includes('opera')) colMap.valor = c;
+        else if (lc.includes('quantidade')) colMap.quantidade = c;
+      });
+
       const conversionMap: Record<string, string> = {};
       earningsConversions.forEach((c) => {
         if (c.oldTicker && c.newTicker) {
@@ -470,28 +521,36 @@ export const ToolsView: React.FC = () => {
       });
 
       const parsedItems: any[] = [];
+      let skippedCount = 0;
+
       rawRows.forEach((row, idx) => {
-        const prod = String(row['Produto'] || row['Ativo'] || row['Papel'] || '').trim();
-        const rawTicker = (prod.split(' - ')[0] || '').trim().toUpperCase();
-        if (!rawTicker || rawTicker.length < 4) return;
+        const desc = String(row[colMap.movimentacao] || '');
+        if (!desc.includes('Rendimento') && !desc.includes('Dividendo') && !desc.includes('Juros')) {
+          return;
+        }
+
+        const rawProduct = String(row[colMap.produto] || '').trim();
+        const rawTicker = (rawProduct.split(' - ')[0] || '').trim().toUpperCase();
+        if (!rawTicker || rawTicker.length < 4) {
+          skippedCount++;
+          return;
+        }
 
         const resolvedTicker = conversionMap[rawTicker] || rawTicker;
-        const movType = String(
-          row['Tipo de Movimentação'] || row['Movimentação'] || row['Tipo'] || 'Rendimento'
-        ).trim();
-        const dateStr = String(row['Data'] || row['Data com'] || '').trim();
-        const paymentDateStr = String(
-          row['Data de Pagamento'] || row['Pagamento'] || dateStr
-        ).trim();
+        const dateObj = parseDateValue(row[colMap.data]);
+        if (!dateObj) {
+          skippedCount++;
+          return;
+        }
 
+        const rawVal = row[colMap.valor];
         let totalVal = 0;
-        const rawTotal = row['Valor da Operação'] || row['Valor Total'] || row['Total'] || 0;
-        if (typeof rawTotal === 'number') {
-          totalVal = rawTotal;
+        if (typeof rawVal === 'number') {
+          totalVal = rawVal;
         } else {
           totalVal =
             parseFloat(
-              String(rawTotal)
+              String(rawVal)
                 .replace('R$', '')
                 .trim()
                 .replace(/\./g, '')
@@ -499,63 +558,57 @@ export const ToolsView: React.FC = () => {
             ) || 0;
         }
 
-        let quantity = 0;
-        const rawQty = row['Quantidade'] || row['Qtd'] || 0;
+        const rawQty = row[colMap.quantidade];
+        let qty = 0;
         if (typeof rawQty === 'number') {
-          quantity = rawQty;
+          qty = rawQty;
         } else {
-          quantity = parseFloat(String(rawQty).replace(/\./g, '').replace(',', '.')) || 0;
+          qty = parseFloat(String(rawQty).replace(/\./g, '').replace(',', '.')) || 0;
         }
 
-        let unitVal = 0;
-        const rawUnit =
-          row['Preço unitário'] || row['Preço Unitário'] || row['Valor Unitário'] || 0;
-        if (typeof rawUnit === 'number') {
-          unitVal = rawUnit;
-        } else {
-          unitVal =
-            parseFloat(
-              String(rawUnit)
-                .replace('R$', '')
-                .trim()
-                .replace(/\./g, '')
-                .replace(',', '.')
-            ) || 0;
+        if (isNaN(totalVal) || totalVal <= 0) {
+          skippedCount++;
+          return;
         }
 
-        let year = new Date().getFullYear();
-        if (paymentDateStr.includes('/')) {
-          const parts = paymentDateStr.split('/');
-          if (parts.length === 3 && parts[2].length === 4) {
-            year = parseInt(parts[2], 10);
-          }
-        } else if (dateStr.includes('/')) {
-          const parts = dateStr.split('/');
-          if (parts.length === 3 && parts[2].length === 4) {
-            year = parseInt(parts[2], 10);
+        let qtyAjustada = qty;
+        for (const sp of earningsSplits) {
+          const spDate = parseDateValue(sp.date);
+          if (sp.ticker === resolvedTicker && spDate && dateObj < spDate && sp.ratio > 0) {
+            qtyAjustada *= sp.ratio;
           }
         }
 
-        if (totalVal > 0) {
-          parsedItems.push({
-            id: `row-${idx}`,
-            date: dateStr || '-',
-            paymentDate: paymentDateStr || '-',
-            rawTicker,
-            resolvedTicker,
-            type: movType,
-            quantity,
-            unitValue: unitVal > 0 ? unitVal : quantity > 0 ? totalVal / quantity : 0,
-            totalValue: totalVal,
-            year
-          });
-        }
+        const year = dateObj.getFullYear();
+        const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(
+          dateObj.getMonth() + 1
+        ).padStart(2, '0')}/${year}`;
+
+        parsedItems.push({
+          id: `row-${idx}`,
+          date: formattedDate,
+          paymentDate: formattedDate,
+          rawTicker,
+          resolvedTicker,
+          type: desc.includes('Dividendo') ? 'Dividendo' : desc.includes('Juros') ? 'JCP' : 'Rendimento',
+          quantity: qtyAjustada,
+          unitValue: qtyAjustada > 0 ? totalVal / qtyAjustada : 0,
+          totalValue: totalVal,
+          year
+        });
       });
 
+      if (parsedItems.length === 0) {
+        toast.warning(
+          `Nenhum provento identificado no arquivo.${skippedCount > 0 ? ` (${skippedCount} linhas ignoradas)` : ''}`
+        );
+        return;
+      }
+
       setEarningsRecords(parsedItems);
-      toast.success(`${parsedItems.length} lançamentos de proventos processados com sucesso!`);
+      toast.success(`${parsedItems.length} lançamentos de proventos consolidados com sucesso!`);
     } catch {
-      toast.error('Erro ao processar planilha Excel. Certifique-se de que é o extrato da B3.');
+      toast.error('Erro ao ler a planilha Excel. Verifique se o formato é o extrato oficial de movimentações B3.');
     } finally {
       setIsProcessingEarnings(false);
     }
@@ -563,22 +616,31 @@ export const ToolsView: React.FC = () => {
 
   const handleLoadDemoEarnings = (): void => {
     const demoItems = [
-      { id: 'd1', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
-      { id: 'd2', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
-      { id: 'd3', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
-      { id: 'd4', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
-      { id: 'd5', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
-      { id: 'd6', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
-      { id: 'd7', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'GALG11', resolvedTicker: 'GARE11', type: 'Rendimento', quantity: 300, unitValue: 0.086, totalValue: 25.80, year: 2026 },
-      { id: 'd8', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1000, unitValue: 0.10, totalValue: 100.00, year: 2026 },
-      { id: 'd9', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 120, unitValue: 1.10, totalValue: 132.00, year: 2026 },
-      { id: 'd10', date: '29/12/2025', paymentDate: '14/01/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2026 },
-      { id: 'd11', date: '28/11/2025', paymentDate: '12/12/2025', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 100, unitValue: 1.10, totalValue: 110.00, year: 2025 },
-      { id: 'd12', date: '28/11/2025', paymentDate: '12/12/2025', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2025 },
-      { id: 'd13', date: '31/10/2025', paymentDate: '14/11/2025', rawTicker: 'CVBI11', resolvedTicker: 'PCIP11', type: 'Rendimento', quantity: 200, unitValue: 0.95, totalValue: 190.00, year: 2025 }
+      { id: 'd1', date: '14/10/2026', paymentDate: '14/10/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
+      { id: 'd2', date: '14/10/2026', paymentDate: '14/10/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
+      { id: 'd3', date: '14/10/2026', paymentDate: '14/10/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
+      { id: 'd4', date: '14/09/2026', paymentDate: '14/09/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
+      { id: 'd5', date: '14/09/2026', paymentDate: '14/09/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
+      { id: 'd6', date: '14/09/2026', paymentDate: '14/09/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
+      { id: 'd7', date: '14/08/2026', paymentDate: '14/08/2026', rawTicker: 'GALG11', resolvedTicker: 'GARE11', type: 'Rendimento', quantity: 300, unitValue: 0.086, totalValue: 25.80, year: 2026 },
+      { id: 'd8', date: '14/08/2026', paymentDate: '14/08/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1000, unitValue: 0.10, totalValue: 100.00, year: 2026 },
+      { id: 'd9', date: '14/08/2026', paymentDate: '14/08/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 120, unitValue: 1.10, totalValue: 132.00, year: 2026 },
+      { id: 'd10', date: '14/12/2025', paymentDate: '14/12/2025', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2025 },
+      { id: 'd11', date: '12/12/2025', paymentDate: '12/12/2025', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 100, unitValue: 1.10, totalValue: 110.00, year: 2025 },
+      { id: 'd12', date: '12/11/2025', paymentDate: '12/11/2025', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2025 },
+      { id: 'd13', date: '14/11/2025', paymentDate: '14/11/2025', rawTicker: 'CVBI11', resolvedTicker: 'PCIP11', type: 'Rendimento', quantity: 200, unitValue: 0.95, totalValue: 190.00, year: 2025 },
+      { id: 'd14', date: '15/10/2024', paymentDate: '15/10/2024', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 80, unitValue: 1.10, totalValue: 88.00, year: 2024 },
+      { id: 'd15', date: '15/10/2024', paymentDate: '15/10/2024', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 500, unitValue: 0.11, totalValue: 55.00, year: 2024 }
     ];
     setEarningsRecords(demoItems);
-    toast.success('Extrato de demonstração carregado com 13 lançamentos!');
+    toast.success('Extrato de demonstração carregado com 15 lançamentos e 3 anos históricos!');
+  };
+
+  const toggleYearCollapse = (year: number): void => {
+    setCollapsedYears((prev) => ({
+      ...prev,
+      [year]: !prev[year]
+    }));
   };
 
   const earningsYearsList = useMemo(() => {
@@ -591,6 +653,37 @@ export const ToolsView: React.FC = () => {
     if (selectedEarningsYear === 'all') return earningsRecords;
     return earningsRecords.filter((r) => r.year === selectedEarningsYear);
   }, [earningsRecords, selectedEarningsYear]);
+
+  const consolidatedYearlyReport = useMemo(() => {
+    const report: Record<number, Record<string, { value: number; quantity: number; meses: number }>> = {};
+
+    filteredEarningsRecords.forEach((item) => {
+      const yr = item.year;
+      const t = item.resolvedTicker;
+      if (!report[yr]) report[yr] = {};
+      if (!report[yr][t]) report[yr][t] = { value: 0, quantity: 0, meses: 0 };
+      report[yr][t].value += item.totalValue;
+      report[yr][t].quantity += item.quantity;
+      report[yr][t].meses += 1;
+    });
+
+    const years = Object.keys(report).map(Number).sort((a, b) => b - a);
+    return years.map((yr) => {
+      const tickers = Object.keys(report[yr]).sort();
+      const total = tickers.reduce((sum, t) => sum + report[yr][t].value, 0);
+      const assets = tickers.map((t) => ({
+        ticker: t,
+        avgQuantity: report[yr][t].meses > 0 ? report[yr][t].quantity / report[yr][t].meses : 0,
+        totalValue: report[yr][t].value,
+        monthsCount: report[yr][t].meses
+      }));
+      return {
+        year: yr,
+        total,
+        assets
+      };
+    });
+  }, [filteredEarningsRecords]);
 
   const earningsMetrics = useMemo(() => {
     const total = filteredEarningsRecords.reduce((acc, cur) => acc + cur.totalValue, 0);
@@ -832,18 +925,43 @@ export const ToolsView: React.FC = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
+                  <div className="flex items-center justify-between text-xs text-slate-300 mb-1.5">
                     <span>Prazo de Acúmulo</span>
-                    <span className="font-bold text-emerald-400">{yearsPeriod} anos ({monthsTotal} meses)</span>
+                    <span className="font-bold text-emerald-400 font-mono">
+                      {yearsPeriod} anos ({monthsTotal} meses)
+                    </span>
                   </div>
-                  <input
-                    type="range"
-                    min={1}
-                    max={40}
-                    value={yearsPeriod}
-                    onChange={(e) => setYearsPeriod(Number(e.target.value))}
-                    className="w-full accent-emerald-500 cursor-pointer"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={yearsPeriod}
+                      onChange={(e) =>
+                        setYearsPeriod(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
+                      }
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-xs text-white focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                      anos
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                    {[5, 10, 15, 20, 30].map((presetYear) => (
+                      <button
+                        key={presetYear}
+                        type="button"
+                        onClick={() => setYearsPeriod(presetYear)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                          yearsPeriod === presetYear
+                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                            : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {presetYear} anos
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -2090,81 +2208,195 @@ export const ToolsView: React.FC = () => {
                     </div>
                   </div>
 
-                  {earningsYearsList.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
-                      <span className="text-xs font-semibold text-slate-400 mr-2">Filtrar por Ano:</span>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+                    <div className="flex items-center gap-2 p-1 rounded-xl bg-slate-950 border border-slate-800">
                       <button
                         type="button"
-                        onClick={() => setSelectedEarningsYear('all')}
-                        className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                          selectedEarningsYear === 'all'
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                        onClick={() => setEarningsViewTab('consolidated')}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                          earningsViewTab === 'consolidated'
+                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Todos os Anos
+                        Consolidação por Ano
                       </button>
-                      {earningsYearsList.map((yr) => (
+                      <button
+                        type="button"
+                        onClick={() => setEarningsViewTab('detailed')}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                          earningsViewTab === 'detailed'
+                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Extrato Detalhado
+                      </button>
+                    </div>
+
+                    {earningsYearsList.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
-                          key={yr}
                           type="button"
-                          onClick={() => setSelectedEarningsYear(yr)}
-                          className={`rounded-xl px-3 py-1.5 text-xs font-bold transition font-mono ${
-                            selectedEarningsYear === yr
+                          onClick={() => setSelectedEarningsYear('all')}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                            selectedEarningsYear === 'all'
                               ? 'bg-emerald-500 text-slate-950'
                               : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
                           }`}
                         >
-                          {yr}
+                          Todos
                         </button>
-                      ))}
+                        {earningsYearsList.map((yr) => (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => setSelectedEarningsYear(yr)}
+                            className={`rounded-lg px-2.5 py-1 text-xs font-bold transition font-mono ${
+                              selectedEarningsYear === yr
+                                ? 'bg-emerald-500 text-slate-950'
+                                : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {yr}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {earningsViewTab === 'consolidated' ? (
+                    <div className="space-y-4">
+                      {consolidatedYearlyReport.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-8 text-center text-xs text-slate-500">
+                          Nenhum extrato carregado ainda. Importe seu arquivo Excel (.xlsx) da B3 ou clique em "Carregar Dados de Exemplo".
+                        </div>
+                      ) : (
+                        consolidatedYearlyReport.map((grp) => {
+                          const isCollapsed = Boolean(collapsedYears[grp.year]);
+                          return (
+                            <div
+                              key={grp.year}
+                              className="rounded-2xl border border-slate-800/80 bg-slate-950/70 overflow-hidden shadow-lg transition"
+                            >
+                              <div
+                                onClick={() => toggleYearCollapse(grp.year)}
+                                className="cursor-pointer p-4 bg-slate-900/60 hover:bg-slate-900 flex items-center justify-between user-select-none transition border-b border-slate-800/60"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/20">
+                                    {isCollapsed ? '+' : '−'}
+                                  </span>
+                                  <span className="text-base font-extrabold text-white tracking-wide">
+                                    {grp.year}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs">
+                                  <span className="text-slate-400">
+                                    {grp.assets.length} {grp.assets.length === 1 ? 'ativo' : 'ativos'}
+                                  </span>
+                                  <span className="text-sm font-bold text-emerald-400 font-mono">
+                                    R$ {grp.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {!isCollapsed && (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left font-mono text-xs">
+                                    <thead>
+                                      <tr className="bg-slate-950 border-b border-slate-800/60 text-slate-400">
+                                        <th className="p-3">Ativo</th>
+                                        <th className="p-3 text-right" title="Média de cotas que receberam provento no ano (com razão de desdobramento)">
+                                          Cotas Médias
+                                        </th>
+                                        <th className="p-3 text-right">Valor Recebido</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/40 text-[11px]">
+                                      {grp.assets.map((ast) => (
+                                        <tr key={ast.ticker} className="hover:bg-slate-900/30">
+                                          <td className="p-3 font-bold text-white">{ast.ticker}</td>
+                                          <td className="p-3 text-right text-slate-300">
+                                            {ast.avgQuantity.toFixed(0)}
+                                          </td>
+                                          <td className="p-3 text-right font-bold text-emerald-400">
+                                            R$ {ast.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr className="border-t border-slate-800 bg-slate-900/40 text-xs">
+                                        <td colSpan={2} className="p-3 font-bold text-slate-300">
+                                          Total do ano ({grp.year})
+                                        </td>
+                                        <td className="p-3 text-right font-bold text-emerald-400 font-mono text-sm">
+                                          R$ {grp.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                      <table className="w-full text-left font-mono text-xs">
+                        <thead>
+                          <tr className="bg-slate-950 border-b border-slate-800 text-slate-400">
+                            <th className="p-3">Data Pagamento</th>
+                            <th className="p-3">Ativo</th>
+                            <th className="p-3">Tipo</th>
+                            <th className="p-3">Qtd</th>
+                            <th className="p-3">Valor/Cota</th>
+                            <th className="p-3 text-right">Total Recebido</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 bg-slate-950/40 text-[11px]">
+                          {filteredEarningsRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-8 text-center text-slate-500">
+                                Nenhum extrato carregado ainda. Importe seu arquivo Excel (.xlsx) ou clique em "Carregar Dados de Exemplo".
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredEarningsRecords.map((item) => (
+                              <tr key={item.id} className="hover:bg-slate-900/40">
+                                <td className="p-3 text-slate-300">{item.paymentDate}</td>
+                                <td className="p-3">
+                                  <span className="font-bold text-white">{item.resolvedTicker}</span>
+                                  {item.rawTicker !== item.resolvedTicker && (
+                                    <span className="text-[10px] text-slate-500 ml-1.5">({item.rawTicker})</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] text-emerald-400 font-semibold border border-slate-800">
+                                    {item.type}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-slate-300">{item.quantity > 0 ? item.quantity : '-'}</td>
+                                <td className="p-3 text-slate-300">R$ {item.unitValue.toFixed(2)}</td>
+                                <td className="p-3 text-right font-bold text-emerald-400">
+                                  R$ {item.totalValue.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
-                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                    <table className="w-full text-left font-mono text-xs">
-                      <thead>
-                        <tr className="bg-slate-950 border-b border-slate-800 text-slate-400">
-                          <th className="p-3">Data Pagamento</th>
-                          <th className="p-3">Ativo</th>
-                          <th className="p-3">Tipo</th>
-                          <th className="p-3">Qtd</th>
-                          <th className="p-3">Valor/Cota</th>
-                          <th className="p-3 text-right">Total Recebido</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 bg-slate-950/40 text-[11px]">
-                        {filteredEarningsRecords.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-8 text-center text-slate-500">
-                              Nenhum extrato carregado ainda. Importe seu arquivo Excel (.xlsx) ou clique em "Carregar Dados de Exemplo".
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredEarningsRecords.map((item) => (
-                            <tr key={item.id} className="hover:bg-slate-900/40">
-                              <td className="p-3 text-slate-300">{item.paymentDate}</td>
-                              <td className="p-3">
-                                <span className="font-bold text-white">{item.resolvedTicker}</span>
-                                {item.rawTicker !== item.resolvedTicker && (
-                                  <span className="text-[10px] text-slate-500 ml-1.5">({item.rawTicker})</span>
-                                )}
-                              </td>
-                              <td className="p-3">
-                                <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] text-emerald-400 font-semibold border border-slate-800">
-                                  {item.type}
-                                </span>
-                              </td>
-                              <td className="p-3 text-slate-300">{item.quantity > 0 ? item.quantity : '-'}</td>
-                              <td className="p-3 text-slate-300">R$ {item.unitValue.toFixed(2)}</td>
-                              <td className="p-3 text-right font-bold text-emerald-400">
-                                R$ {item.totalValue.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                  <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-xs sm:text-sm">
+                    <span className="text-slate-400">Total Consolidado de Proventos:</span>
+                    <span className="text-lg sm:text-2xl font-black text-emerald-400 font-mono">
+                      R$ {earningsMetrics.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
                 </div>
               </div>

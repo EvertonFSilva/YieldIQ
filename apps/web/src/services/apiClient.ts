@@ -135,6 +135,26 @@ export const userService = {
       '/auth/profile/apikey'
     );
     return response.data.data.apiKey;
+  },
+
+  async retrieveUsage(period: string = 'month'): Promise<{
+    period: string;
+    totalRequests: number;
+    averageDurationMs: number;
+    requestsByEndpoint: Record<string, number>;
+    requestsByMethod: Record<string, number>;
+  }> {
+    const response = await apiClient.get<{
+      success: boolean;
+      data: {
+        period: string;
+        totalRequests: number;
+        averageDurationMs: number;
+        requestsByEndpoint: Record<string, number>;
+        requestsByMethod: Record<string, number>;
+      };
+    }>('/auth/profile/usage', { params: { period } });
+    return response.data.data;
   }
 };
 
@@ -265,5 +285,30 @@ export const adminService = {
       data: { totalSynced: number; countsByType: Record<string, number> };
     }>('/admin/sync-assets');
     return response.data.data;
+  }
+};
+
+export const systemService = {
+  async retrieveHealth(): Promise<{
+    status: string;
+    service: string;
+    database: string;
+    totalAssetsMonitored: number;
+    uptime: string;
+    uptimeSeconds: number;
+    whatsapp: string;
+    timestamp: string;
+  }> {
+    const response = await apiClient.get<{
+      status: string;
+      service: string;
+      database: string;
+      totalAssetsMonitored: number;
+      uptime: string;
+      uptimeSeconds: number;
+      whatsapp: string;
+      timestamp: string;
+    }>('/health');
+    return response.data;
   }
 };
