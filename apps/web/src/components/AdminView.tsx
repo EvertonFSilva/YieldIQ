@@ -12,9 +12,11 @@ import {
 import { adminService } from '../services/apiClient';
 import { WhatsAppStatusData, WhatsAppGroupItem, GroupAlertItem, AdminUserItem } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const AdminView: React.FC = () => {
   const { currentUser } = useAuth();
+  const toast = useToast();
   const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatusData | null>(null);
   const [groups, setGroups] = useState<WhatsAppGroupItem[]>([]);
   const [groupAlerts, setGroupAlerts] = useState<GroupAlertItem[]>([]);
@@ -64,12 +66,14 @@ export const AdminView: React.FC = () => {
 
   const handleInitializeWhatsApp = async (): Promise<void> => {
     await adminService.initializeWhatsApp();
+    toast.info('Inicialização do WhatsApp disparada');
     setTimeout(loadAllAdminData, 2000);
   };
 
   const handleDisconnectWhatsApp = async (): Promise<void> => {
     if (window.confirm('Deseja realmente desconectar a sessão do WhatsApp?')) {
       await adminService.disconnectWhatsApp();
+      toast.info('Sessão do WhatsApp desconectada');
       setTimeout(loadAllAdminData, 1500);
     }
   };
@@ -79,11 +83,12 @@ export const AdminView: React.FC = () => {
     setSyncFeedback(null);
     try {
       const result = await adminService.syncAssets();
-      setSyncFeedback(
-        `Sincronização concluída! ${result.totalSynced} ativos processados (FII: ${result.countsByType.FII}, FIAGRO: ${result.countsByType.FIAGRO}, FI-INFRA: ${result.countsByType.FI_INFRA}).`
-      );
+      const feedback = `Sincronização concluída! ${result.totalSynced} ativos processados (FII: ${result.countsByType.FII}, FIAGRO: ${result.countsByType.FIAGRO}, FI-INFRA: ${result.countsByType.FI_INFRA}).`;
+      setSyncFeedback(feedback);
+      toast.success('Ativos da B3 sincronizados com sucesso!');
     } catch {
       setSyncFeedback('Erro ao sincronizar ativos da B3. Tente novamente.');
+      toast.error('Erro ao sincronizar ativos da B3');
     } finally {
       setIsSyncingAssets(false);
     }
@@ -110,6 +115,9 @@ export const AdminView: React.FC = () => {
       setIsCreateGroupAlertOpen(false);
       const updatedAlerts = await adminService.retrieveGroupAlerts();
       setGroupAlerts(updatedAlerts);
+      toast.success('Alerta de grupo criado com sucesso!');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || err.message || 'Erro ao criar alerta de grupo');
     } finally {
       setIsSubmittingAlert(false);
     }
@@ -120,6 +128,7 @@ export const AdminView: React.FC = () => {
       await adminService.deleteGroupAlert(alertId);
       const updatedAlerts = await adminService.retrieveGroupAlerts();
       setGroupAlerts(updatedAlerts);
+      toast.success('Alerta de grupo excluído');
     }
   };
 
@@ -129,6 +138,7 @@ export const AdminView: React.FC = () => {
       await adminService.updateUserPrivileges(user.id, { role: targetRole });
       const updatedUsers = await adminService.listUsers();
       setUsersList(updatedUsers);
+      toast.success(`Permissão de ${user.username} alterada para ${targetRole}`);
     }
   };
 
@@ -258,7 +268,7 @@ export const AdminView: React.FC = () => {
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">Sincronização de Ativos B3</h3>
-              <p className="text-xs text-slate-400">Importação em lote de todos os fundos</p>
+              <p className="text-xs text-slate-400">Importação em lote de todos os ativos</p>
             </div>
           </div>
 

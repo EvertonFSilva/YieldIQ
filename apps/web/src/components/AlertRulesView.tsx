@@ -3,9 +3,11 @@ import { Plus, Trash2, CheckCircle2, XCircle, Send, RefreshCw, Smartphone, Arrow
 import { alertService } from '../services/apiClient';
 import { AlertRuleItem } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const AlertRulesView: React.FC = () => {
   const { currentUser, openAuthModal } = useAuth();
+  const toast = useToast();
   const [rulesList, setRulesList] = useState<AlertRuleItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSendingTestAlert, setIsSendingTestAlert] = useState<boolean>(false);
@@ -54,7 +56,7 @@ export const AlertRulesView: React.FC = () => {
               Alertas no WhatsApp Exclusivos para Usuários
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-              Receba notificações instantâneas no seu celular sempre que um fundo anunciar dividendos, publicar fatos relevantes na CVM ou atingir seus limites de preço.
+              Receba notificações instantâneas no seu celular sempre que um ativo anunciar dividendos, publicar fatos relevantes na CVM ou atingir seus limites de preço.
             </p>
           </div>
 
@@ -134,13 +136,13 @@ export const AlertRulesView: React.FC = () => {
         enabled: true
       });
 
-      setFeedbackMessage({ type: 'success', text: `Regra para ${tickerInput.toUpperCase()} salva com sucesso!` });
+      toast.success(`Regra para ${tickerInput.toUpperCase()} salva com sucesso!`);
       setTickerInput('');
       setMinPriceInput('');
       setMaxPriceInput('');
       fetchRules();
     } catch (error: any) {
-      setFeedbackMessage({ type: 'error', text: error.response?.data?.error?.message || error.message });
+      toast.error(error.response?.data?.error?.message || error.message);
     }
   };
 
@@ -150,8 +152,9 @@ export const AlertRulesView: React.FC = () => {
       setRulesList((prev) =>
         prev.map((r) => (r.id === ruleId ? { ...r, enabled: !currentEnabled } : r))
       );
-    } catch (error: any) {
-      setFeedbackMessage({ type: 'error', text: 'Falha ao alterar status da regra' });
+      toast.info(!currentEnabled ? 'Alerta ativado' : 'Alerta pausado');
+    } catch {
+      toast.error('Falha ao alterar status da regra');
     }
   };
 
@@ -159,23 +162,19 @@ export const AlertRulesView: React.FC = () => {
     try {
       await alertService.deleteRule(ruleId);
       setRulesList((prev) => prev.filter((r) => r.id !== ruleId));
-      setFeedbackMessage({ type: 'success', text: 'Regra de alerta removida com sucesso' });
-    } catch (error: any) {
-      setFeedbackMessage({ type: 'error', text: 'Falha ao excluir regra de alerta' });
+      toast.success('Regra de alerta removida com sucesso');
+    } catch {
+      toast.error('Falha ao excluir regra de alerta');
     }
   };
 
   const handleSendTestMessage = async () => {
     setIsSendingTestAlert(true);
-    setFeedbackMessage(null);
     try {
       await alertService.sendTestAlert();
-      setFeedbackMessage({ type: 'success', text: 'Mensagem de teste enviada para seu WhatsApp!' });
+      toast.success('Mensagem de teste enviada para seu WhatsApp!');
     } catch (error: any) {
-      setFeedbackMessage({
-        type: 'error',
-        text: error.response?.data?.error?.message || 'Falha ao enviar mensagem de teste'
-      });
+      toast.error(error.response?.data?.error?.message || error.message);
     } finally {
       setIsSendingTestAlert(false);
     }

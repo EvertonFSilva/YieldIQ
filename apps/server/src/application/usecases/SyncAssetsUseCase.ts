@@ -3,16 +3,15 @@ import { postgresDatabase } from '../../infrastructure/database/PostgresDatabase
 import { environment } from '../../config/env';
 import { AssetType } from '../../domain/enums/AssetType';
 
-interface B3FundItem {
+interface B3AssetItem {
   acronym?: string;
-  fundName?: string;
   companyName?: string;
-  typeFund?: string;
   segment?: string;
+  [key: string]: any;
 }
 
 interface B3SearchResponse {
-  results?: B3FundItem[];
+  results?: B3AssetItem[];
   page?: {
     totalRecords?: number;
     pageSize?: number;
@@ -76,11 +75,12 @@ export class SyncAssetsUseCase {
               continue;
             }
 
-            const assetName = (item.fundName || item.companyName || rawTicker).trim();
+            const rawName = item.fundName || item.companyName || rawTicker;
+            const assetName = String(rawName).trim();
             const metadataJson = JSON.stringify({
               segment: item.segment || null,
               b3Acronym: item.acronym,
-              b3TypeFund: item.typeFund
+              b3AssetType: mapping.assetType
             });
 
             await postgresDatabase.query(

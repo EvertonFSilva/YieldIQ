@@ -31,7 +31,7 @@ export const ApiDocsView: React.FC = () => {
       method: 'GET',
       path: '/assets',
       title: 'Listar Ativos da Bolsa',
-      description: 'Retorna a lista completa de fundos listados na B3 (FIIs, FIAGROs e FI-INFRAs). Permite consulta pública sem autenticação obrigatória.',
+      description: 'Retorna a lista completa de ativos listados na B3 (FIIs, FIAGROs e FI-INFRAs). Permite consulta pública sem autenticação obrigatória.',
       isProtected: false,
       queryParams: [
         { name: 'type', type: 'string', required: false, description: 'Filtra por tipo: FII, FIAGRO ou FI_INFRA' }
@@ -42,7 +42,7 @@ export const ApiDocsView: React.FC = () => {
           {
             id: 'd0b8f6aa-7512-4e4b-bb21-39e1a1234567',
             ticker: 'MXRF11',
-            name: 'MAXI RENDA FUNDO DE INVESTIMENTO IMOBILIARIO',
+            name: 'MAXI RENDA FII',
             type: 'FII',
             metadata: { segment: 'Papel / CRI' },
             isActive: true
@@ -50,7 +50,7 @@ export const ApiDocsView: React.FC = () => {
           {
             id: 'e1c9a7bb-8623-5f5c-cc32-40f2b2345678',
             ticker: 'HGLG11',
-            name: 'CSHG LOGÍSTICA FUNDO DE INVESTIMENTO IMOBILIÁRIO',
+            name: 'CSHG LOGÍSTICA FII',
             type: 'FII',
             metadata: { segment: 'Logística' },
             isActive: true

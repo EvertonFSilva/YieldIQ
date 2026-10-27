@@ -166,7 +166,7 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">Ativos em Destaque</h2>
-            <p className="text-xs text-slate-400 mt-1">Exemplos de fundos listados na B3 com dados e proventos rastreados</p>
+            <p className="text-xs text-slate-400 mt-1">Exemplos de ativos listados na B3 com dados e proventos rastreados</p>
           </div>
 
           <button

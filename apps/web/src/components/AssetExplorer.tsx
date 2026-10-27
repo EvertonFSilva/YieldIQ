@@ -1,5 +1,21 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Search, Filter, ArrowUpRight, RefreshCw, AlertCircle, Building2, Sprout, Zap, PieChart } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  ArrowUpRight,
+  RefreshCw,
+  AlertCircle,
+  Building2,
+  Sprout,
+  Zap,
+  PieChart,
+  LayoutGrid,
+  List,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal
+} from 'lucide-react';
 import { assetService } from '../services/apiClient';
 import { AssetItem } from '../types';
 import { AssetDetailModal } from './AssetDetailModal';
@@ -11,33 +27,32 @@ export const AssetExplorer: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedAssetForModal, setSelectedAssetForModal] = useState<AssetItem | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(24);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadAssets = (): void => {
     setIsLoading(true);
     setErrorMessage(null);
 
     assetService
       .listAssets()
       .then((items) => {
-        if (isMounted) {
-          setAssetsList(items);
-          setIsLoading(false);
-        }
+        setAssetsList(items);
+        setIsLoading(false);
       })
       .catch((error) => {
-        if (isMounted) {
-          setErrorMessage(error.message || 'Falha ao buscar ativos listados');
-          setIsLoading(false);
-        }
+        setErrorMessage(error.message || 'Falha ao buscar ativos listados');
+        setIsLoading(false);
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    loadAssets();
   }, []);
 
-  const filteredAssets = useMemo(() => {
+  const filteredAndSortedAssets = useMemo(() => {
     let result = assetsList;
 
     if (selectedTypeFilter !== 'ALL') {
@@ -50,12 +65,30 @@ export const AssetExplorer: React.FC = () => {
         (item) =>
           item.ticker.toLowerCase().includes(query) ||
           item.name.toLowerCase().includes(query) ||
+          (item.metadata?.segment || '').toLowerCase().includes(query) ||
           (item.administratorName || '').toLowerCase().includes(query)
       );
     }
 
-    return result;
-  }, [searchQuery, selectedTypeFilter, assetsList]);
+    const sorted = [...result].sort((firstAsset, secondAsset) => {
+      if (sortOrder === 'asc') {
+        return firstAsset.ticker.localeCompare(secondAsset.ticker);
+      }
+      return secondAsset.ticker.localeCompare(firstAsset.ticker);
+    });
+
+    return sorted;
+  }, [searchQuery, selectedTypeFilter, assetsList, sortOrder]);
+
+  const totalPages = Math.ceil(filteredAndSortedAssets.length / itemsPerPage);
+
+  const paginatedAssets = useMemo(() => {
+    if (itemsPerPage >= 999) {
+      return filteredAndSortedAssets;
+    }
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedAssets.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAndSortedAssets, currentPage, itemsPerPage]);
 
   const metrics = useMemo(() => {
     const total = assetsList.length;
@@ -65,83 +98,207 @@ export const AssetExplorer: React.FC = () => {
     return { total, fiiCount, fiagroCount, fiInfraCount };
   }, [assetsList]);
 
+  const handleClearFilters = (): void => {
+    setSearchQuery('');
+    setSelectedTypeFilter('ALL');
+    setCurrentPage(1);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <PieChart className="h-6 w-6 text-emerald-400" />
-            <span>Explorador de Ativos de Rendimento</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+            <PieChart className="h-7 w-7 text-emerald-400" />
+            <span>Explorador de Ativos da B3</span>
           </h1>
-          <p className="text-sm text-slate-400">
-            Acompanhe FIIs, FIAGROs e FI-INFRAs listados na B3 com proventos oficiais e cálculos de valuation.
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Acompanhe FIIs, FIAGROs e FI-INFRAs com cotações em tempo real, proventos da B3 e relatórios CVM.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
-          {['ALL', 'FII', 'FIAGRO', 'FI_INFRA'].map((typeOption) => (
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-1">
             <button
-              key={typeOption}
-              onClick={() => setSelectedTypeFilter(typeOption)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
-                selectedTypeFilter === typeOption
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              onClick={() => setViewMode('grid')}
+              className={`rounded-lg p-2 text-xs font-semibold transition ${
+                viewMode === 'grid' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
               }`}
+              title="Visualização em Grade"
             >
-              {typeOption === 'ALL' ? 'Todos' : typeOption.replace('_', '-')}
+              <LayoutGrid className="h-4 w-4" />
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode('table')}
+              className={`rounded-lg p-2 text-xs font-semibold transition ${
+                viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Visualização em Lista"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+
+          <button
+            onClick={loadAssets}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-emerald-400' : ''}`} />
+            <span className="hidden sm:inline">Atualizar</span>
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+        <div
+          onClick={() => {
+            setSelectedTypeFilter('ALL');
+            setCurrentPage(1);
+          }}
+          className={`cursor-pointer rounded-2xl border p-4 transition ${
+            selectedTypeFilter === 'ALL'
+              ? 'border-emerald-500/40 bg-emerald-500/10'
+              : 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium">Total Ativos</span>
-            <PieChart className="h-4 w-4 text-slate-500" />
+            <span className="text-xs font-medium">Todos os Ativos</span>
+            <PieChart className="h-4 w-4 text-emerald-400" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-bold text-white">{metrics.total}</p>
-          <div className="mt-1 text-[11px] text-slate-500">Monitorados 24/7</div>
+          <p className="mt-1 text-2xl font-bold text-white">{metrics.total}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Base B3 Monitorada</div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+        <div
+          onClick={() => {
+            setSelectedTypeFilter('FII');
+            setCurrentPage(1);
+          }}
+          className={`cursor-pointer rounded-2xl border p-4 transition ${
+            selectedTypeFilter === 'FII'
+              ? 'border-emerald-500/40 bg-emerald-500/10'
+              : 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-medium">FIIs Imobiliários</span>
             <Building2 className="h-4 w-4 text-emerald-400" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-bold text-emerald-400">{metrics.fiiCount}</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-400">{metrics.fiiCount}</p>
           <div className="mt-1 text-[11px] text-slate-500">Renda Imobiliária</div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+        <div
+          onClick={() => {
+            setSelectedTypeFilter('FIAGRO');
+            setCurrentPage(1);
+          }}
+          className={`cursor-pointer rounded-2xl border p-4 transition ${
+            selectedTypeFilter === 'FIAGRO'
+              ? 'border-amber-500/40 bg-amber-500/10'
+              : 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium">FIAGROs Agro</span>
+            <span className="text-xs font-medium">FIAGROs</span>
             <Sprout className="h-4 w-4 text-amber-400" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-bold text-amber-400">{metrics.fiagroCount}</p>
-          <div className="mt-1 text-[11px] text-slate-500">Crédito & Terras Agro</div>
+          <p className="mt-1 text-2xl font-bold text-amber-400">{metrics.fiagroCount}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Cadeia do Agro</div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+        <div
+          onClick={() => {
+            setSelectedTypeFilter('FI_INFRA');
+            setCurrentPage(1);
+          }}
+          className={`cursor-pointer rounded-2xl border p-4 transition ${
+            selectedTypeFilter === 'FI_INFRA'
+              ? 'border-cyan-500/40 bg-cyan-500/10'
+              : 'border-slate-800 bg-slate-900/60 hover:bg-slate-900'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium">FI-INFRAs Infra</span>
+            <span className="text-xs font-medium">FI-INFRAs</span>
             <Zap className="h-4 w-4 text-cyan-400" />
           </div>
-          <p className="mt-1 text-xl sm:text-2xl font-bold text-cyan-400">{metrics.fiInfraCount}</p>
-          <div className="mt-1 text-[11px] text-slate-500">Isentos de I.R.</div>
+          <p className="mt-1 text-2xl font-bold text-cyan-400">{metrics.fiInfraCount}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Debêntures & Infra</div>
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Buscar por código ou nome (ex: HGLG11, KNIP11, RZTR11, JURO11)..."
-          className="w-full rounded-xl border border-slate-800 bg-slate-900/60 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-emerald-500/50"
-        />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder="Buscar por código ou nome (ex: MXRF11, HGLG11, KNCA11, JURO11)..."
+            className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2 pl-10 pr-10 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition focus:border-emerald-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              className="absolute right-3 top-2.5 rounded-md p-1 text-slate-400 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-400">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
+            >
+              <option value="asc" className="bg-slate-900 text-slate-200">Ticker (A-Z)</option>
+              <option value="desc" className="bg-slate-900 text-slate-200">Ticker (Z-A)</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-400">
+            <span className="text-[11px] text-slate-500">Por pág:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
+            >
+              <option value={24} className="bg-slate-900 text-slate-200">24</option>
+              <option value={48} className="bg-slate-900 text-slate-200">48</option>
+              <option value={96} className="bg-slate-900 text-slate-200">96</option>
+              <option value={999} className="bg-slate-900 text-slate-200">Todos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+        <span>
+          Exibindo <span className="font-semibold text-white">{filteredAndSortedAssets.length}</span> ativos encontrados
+        </span>
+        {searchQuery && (
+          <button
+            onClick={handleClearFilters}
+            className="text-emerald-400 hover:underline flex items-center gap-1"
+          >
+            <span>Limpar busca</span>
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -150,19 +307,29 @@ export const AssetExplorer: React.FC = () => {
           <p className="text-sm">Carregando lista de ativos cadastrados...</p>
         </div>
       ) : errorMessage ? (
-        <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-400">
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-400">
           <AlertCircle className="h-5 w-5 shrink-0" />
           <span className="text-sm">{errorMessage}</span>
         </div>
-      ) : filteredAssets.length === 0 ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
-          <Filter className="mx-auto h-8 w-8 text-slate-600 mb-3" />
-          <p className="text-base font-medium text-slate-300">Nenhum ativo encontrado</p>
-          <p className="mt-1 text-xs text-slate-500">Tente buscar por outro código de negociação ou mude o filtro de categoria.</p>
+      ) : filteredAndSortedAssets.length === 0 ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400 space-y-4">
+          <Filter className="mx-auto h-10 w-10 text-slate-600" />
+          <div>
+            <p className="text-base font-semibold text-slate-300">Nenhum ativo encontrado</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Nenhum ativo corresponde à busca "{searchQuery}" para a categoria selecionada.
+            </p>
+          </div>
+          <button
+            onClick={handleClearFilters}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition"
+          >
+            Redefinir Filtros
+          </button>
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredAssets.map((assetItem) => {
+          {paginatedAssets.map((assetItem) => {
             const isFii = assetItem.type === 'FII';
             const isFiagro = assetItem.type === 'FIAGRO';
             const badgeClasses = isFii
@@ -175,33 +342,105 @@ export const AssetExplorer: React.FC = () => {
               <div
                 key={assetItem.id}
                 onClick={() => setSelectedAssetForModal(assetItem)}
-                className="group cursor-pointer rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 transition hover:border-emerald-500/40 hover:bg-slate-900 hover:shadow-xl hover:shadow-emerald-950/20"
+                className="group cursor-pointer rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 transition hover:border-emerald-500/40 hover:bg-slate-900 hover:shadow-xl hover:shadow-emerald-950/20 flex flex-col justify-between"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className={`rounded-md px-2.5 py-1 font-mono text-base font-bold border ${badgeClasses}`}>
-                      {assetItem.ticker}
-                    </span>
-                    <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400 uppercase">
-                      {assetItem.type.replace('_', '-')}
-                    </span>
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-lg px-2.5 py-1 font-mono text-base font-bold border ${badgeClasses}`}>
+                        {assetItem.ticker}
+                      </span>
+                      <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400 uppercase">
+                        {assetItem.type.replace('_', '-')}
+                      </span>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 text-slate-600 transition group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </div>
-                  <ArrowUpRight className="h-4 w-4 text-slate-600 transition group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+
+                  <h3 className="mt-3 line-clamp-2 text-xs font-medium text-slate-300 group-hover:text-white transition leading-relaxed">
+                    {assetItem.name}
+                  </h3>
                 </div>
 
-                <h3 className="mt-3 line-clamp-2 text-sm font-medium text-slate-300 group-hover:text-white transition">
-                  {assetItem.name}
-                </h3>
-
-                <div className="mt-4 flex items-center justify-between border-t border-slate-800/60 pt-3 text-xs text-slate-400">
-                  <span>Administração</span>
-                  <span className="line-clamp-1 max-w-[140px] text-right font-medium text-slate-300">
-                    {assetItem.administratorName || 'B3 Oficial'}
+                <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Segmento</span>
+                  <span className="truncate max-w-[140px] text-right font-medium text-slate-300">
+                    {assetItem.metadata?.segment || 'Geral'}
                   </span>
                 </div>
               </div>
             );
           })}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold">
+                  <th className="p-4">Ticker</th>
+                  <th className="p-4">Nome do Ativo</th>
+                  <th className="p-4">Tipo</th>
+                  <th className="p-4">Segmento</th>
+                  <th className="p-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {paginatedAssets.map((assetItem) => (
+                  <tr
+                    key={assetItem.id}
+                    onClick={() => setSelectedAssetForModal(assetItem)}
+                    className="hover:bg-slate-800/40 cursor-pointer transition"
+                  >
+                    <td className="p-4 font-mono font-bold text-white text-sm">{assetItem.ticker}</td>
+                    <td className="p-4 text-slate-300 font-medium max-w-md truncate">{assetItem.name}</td>
+                    <td className="p-4">
+                      <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                        {assetItem.type.replace('_', '-')}
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-400">{assetItem.metadata?.segment || 'Geral'}</td>
+                    <td className="p-4 text-right">
+                      <button className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 transition">
+                        Ver Detalhes
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {totalPages > 1 && itemsPerPage < 999 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-800/80">
+          <span className="text-xs text-slate-500">
+            Página <span className="font-semibold text-slate-300">{currentPage}</span> de{' '}
+            <span className="font-semibold text-slate-300">{totalPages}</span>
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 transition"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Anterior</span>
+            </button>
+
+            <span className="px-3 text-xs font-mono font-bold text-emerald-400">{currentPage}</span>
+
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 transition"
+            >
+              <span>Próxima</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
