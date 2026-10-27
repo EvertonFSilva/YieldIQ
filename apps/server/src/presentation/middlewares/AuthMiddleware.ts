@@ -82,3 +82,50 @@ export async function authenticateRequest(
     new UnauthorizedError('Unauthorized access. Provide a valid Bearer token or X-API-TOKEN header.')
   );
 }
+
+export async function optionalAuthenticateRequest(
+  request: Request,
+  response: Response,
+  nextFunction: NextFunction
+): Promise<void> {
+  const authorizationHeader = request.header('Authorization') || '';
+  const apiTokenHeader = request.header('X-API-TOKEN');
+  const apiTokenQuery = request.query.token as string | undefined;
+  const providedApiToken = apiTokenHeader || apiTokenQuery;
+
+  if (providedApiToken) {
+    try {
+      const { data: userRecord } = await supabaseAdmin
+        .from('users')
+        .select('id, email, role')
+        .eq('api_key', providedApiToken)
+        .maybeSingle();
+
+      if (userRecord) {
+        request.user = {
+          id: userRecord.id,
+          email: userRecord.email,
+          role: userRecord.role
+        };
+      }
+    } catch {
+    }
+  }
+
+  if (authorizationHeader.startsWith('Bearer ')) {
+    const bearerToken = authorizationHeader.substring(7);
+    try {
+      const decodedPayload = jwt.verify(bearerToken, environment.JWT_SECRET) as any;
+      if (decodedPayload && decodedPayload.sub) {
+        request.user = {
+          id: decodedPayload.sub,
+          email: decodedPayload.email,
+          role: decodedPayload.user_metadata?.role
+        };
+      }
+    } catch {
+    }
+  }
+
+  return nextFunction();
+}
