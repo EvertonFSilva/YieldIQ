@@ -1,0 +1,30 @@
+{
+  "name": "yieldiq",
+  "version": "2.0.0",
+  "private": true,
+  "description": "YieldIQ — Intelligence API & Platform for Brazilian Listed Funds (FII, FIAGRO, FI-INFRA)",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm --workspace=apps/server run dev",
+    "dev:web": "npm --workspace=apps/web run dev",
+    "dev": "npm run dev:server",
+    "build:server": "npm --workspace=apps/server run build",
+    "build:web": "npm --workspace=apps/web run build",
+    "build": "npm run build:server && npm run build:web"
+  },
+  "keywords": [
+    "fii",
+    "fiagro",
+    "fi-infra",
+    "yield",
+    "b3",
+    "finance",
+    "api",
+    "whatsapp-alerts",
+    "clean-architecture"
+  ],
+  "author": "YieldIQ Team",
+  "license": "MIT"
+}

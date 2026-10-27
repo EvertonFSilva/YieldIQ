@@ -1,0 +1,32 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+.output/
+
+# Variáveis de ambiente locais
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Baileys / WhatsApp Auth
+.baileys_auth/
+*auth_info*
+*.session
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pino.log
+*.log
+
+# Sistema / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
