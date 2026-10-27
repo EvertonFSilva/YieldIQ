@@ -28,32 +28,37 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
   const [isLoadingDocuments, setIsLoadingDocuments] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchSummary = (): void => {
     if (!asset) return;
-
-    let isMounted = true;
     setIsLoading(true);
     setErrorMessage(null);
 
     assetService
       .retrieveSummary(asset.ticker)
       .then((data) => {
-        if (isMounted) {
-          setSummaryData(data);
-          setIsLoading(false);
-        }
+        setSummaryData(data);
+        setIsLoading(false);
       })
-      .catch((error) => {
-        if (isMounted) {
-          setErrorMessage(error.message || 'Falha ao carregar detalhes do ativo');
-          setIsLoading(false);
-        }
+      .catch(() => {
+        setErrorMessage('Não foi possível carregar os dados em tempo real para este ativo.');
+        setIsLoading(false);
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    if (!asset) return;
+    fetchSummary();
   }, [asset]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const loadDocuments = async (): Promise<void> => {
     if (!asset || documentsList.length > 0) return;
@@ -91,8 +96,14 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn">
-      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8 shadow-2xl space-y-6">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8 shadow-2xl space-y-6"
+      >
         <div className="flex items-start justify-between border-b border-slate-800 pb-5">
           <div className="space-y-1.5">
             <div className="flex items-center gap-3">
@@ -111,6 +122,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
 
           <button
             onClick={onClose}
+            aria-label="Fechar detalhes do ativo"
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
           >
             <X className="h-5 w-5" />
@@ -161,16 +173,25 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
             <p className="text-xs">Buscando cotações e proventos oficiais em tempo real...</p>
           </div>
         ) : errorMessage ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-400 text-xs">
-            <AlertCircle className="h-5 w-5 shrink-0" />
-            <span>{errorMessage}</span>
+          <div className="flex flex-col items-center justify-center p-8 rounded-2xl border border-slate-800 bg-slate-950/60 text-center space-y-3">
+            <AlertCircle className="h-8 w-8 text-amber-400" />
+            <p className="text-sm font-semibold text-white">Informações Temporariamente Indisponíveis</p>
+            <p className="text-xs text-slate-400 max-w-md">
+              Não foi possível sincronizar os dados em tempo real para este ativo. A B3 ou CVM podem estar em janela de manutenção.
+            </p>
+            <button
+              onClick={fetchSummary}
+              className="mt-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 transition"
+            >
+              Tentar Novamente
+            </button>
           </div>
         ) : summaryData ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950/40 px-4 py-2 rounded-xl border border-slate-800/80">
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Última atualização da cotação: <strong className="text-white">{formatLastUpdated(summaryData.priceQuote?.lastUpdatedAt)}</strong></span>
+                <span>Última atualização: <strong className="text-white">{formatLastUpdated(summaryData.priceQuote?.lastUpdatedAt)}</strong></span>
               </div>
               <span className="text-[11px] text-slate-500">Fonte: Yahoo Finance &bull; B3 Oficial</span>
             </div>
@@ -378,14 +399,9 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
           </div>
         ) : null}
 
-        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-          <span className="text-xs text-slate-500">Dados oficiais B3 &bull; CVM FNET &bull; Tesouro Nacional</span>
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition"
-          >
-            Fechar
-          </button>
+        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+          <span>Dados oficiais B3 &bull; CVM FNET &bull; Tesouro Nacional</span>
+          <span className="text-[11px]">Pressione ESC ou clique no X para fechar</span>
         </div>
       </div>
     </div>

@@ -239,31 +239,62 @@ export class AdminController {
     try {
       this.ensureAdminPrivilege(request);
       const targetUserId = request.params.id;
-      const { role, alertQuota, privilege, ruleLimit } = request.body;
+      const { username, email, phone_number, role, alertQuota, privilege, ruleLimit } = request.body;
 
       const targetRole = role || (privilege ? privilege.toUpperCase() : undefined);
       const targetQuota = alertQuota ?? ruleLimit;
 
-      if (targetRole && targetQuota !== undefined) {
-        await postgresDatabase.query(
-          'UPDATE public.users SET role = $1, alert_quota = $2, updated_at = NOW() WHERE id = $3',
-          [targetRole, targetQuota, targetUserId]
-        );
-      } else if (targetRole) {
-        await postgresDatabase.query(
-          'UPDATE public.users SET role = $1, updated_at = NOW() WHERE id = $2',
-          [targetRole, targetUserId]
-        );
-      } else if (targetQuota !== undefined) {
-        await postgresDatabase.query(
-          'UPDATE public.users SET alert_quota = $1, updated_at = NOW() WHERE id = $2',
-          [targetQuota, targetUserId]
-        );
+      const fieldsToUpdate: string[] = [];
+      const queryValues: any[] = [];
+      let parameterIndex = 1;
+
+      if (username) {
+        fieldsToUpdate.push(`username = $${parameterIndex++}`);
+        queryValues.push(username.trim());
+      }
+      if (email) {
+        fieldsToUpdate.push(`email = $${parameterIndex++}`);
+        queryValues.push(email.trim().toLowerCase());
+      }
+      if (phone_number !== undefined) {
+        fieldsToUpdate.push(`phone_number = $${parameterIndex++}`);
+        queryValues.push(phone_number ? phone_number.trim() : null);
+      }
+      if (targetRole) {
+        fieldsToUpdate.push(`role = $${parameterIndex++}`);
+        queryValues.push(targetRole);
+      }
+      if (targetQuota !== undefined) {
+        fieldsToUpdate.push(`alert_quota = $${parameterIndex++}`);
+        queryValues.push(Number(targetQuota));
+      }
+
+      if (fieldsToUpdate.length > 0) {
+        fieldsToUpdate.push('updated_at = NOW()');
+        queryValues.push(targetUserId);
+
+        const updateQuery = `
+          UPDATE public.users
+          SET ${fieldsToUpdate.join(', ')}
+          WHERE id = $${parameterIndex}
+          RETURNING id, username, email, phone_number, role, alert_quota, created_at, updated_at
+        `;
+
+        const queryResult = await postgresDatabase.query(updateQuery, queryValues);
+        if (queryResult.rows.length === 0) {
+          throw new NotFoundError('User not found');
+        }
+
+        response.json({
+          success: true,
+          data: queryResult.rows[0]
+        });
+        return;
       }
 
       response.json({
         success: true,
-        data: { message: 'User updated successfully' }
+        data: { message: 'No changes provided' }
       });
     } catch (error) {
       nextStep(error);

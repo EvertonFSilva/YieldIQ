@@ -1,6 +1,8 @@
 import { RetrieveAssetPriceUseCase } from './RetrieveAssetPriceUseCase';
 import { RetrieveAssetDividendsUseCase } from './RetrieveAssetDividendsUseCase';
 import { Ticker } from '../../domain/value-objects/Ticker';
+import { PriceQuote } from '../../domain/entities/PriceQuote';
+import { Dividend } from '../../domain/entities/Dividend';
 
 export interface AssetSummaryData {
   ticker: string;
@@ -51,29 +53,47 @@ export class RetrieveAssetSummaryUseCase {
   ) {}
 
   public async execute(tickerSymbol: string): Promise<AssetSummaryData> {
-    const assetTicker = new Ticker(tickerSymbol);
+    const cleanSymbol = (tickerSymbol || '').trim().toUpperCase();
+    const assetTicker = new Ticker(cleanSymbol);
 
-    const [priceQuote, dividendList] = await Promise.all([
-      this.retrieveAssetPriceUseCase.execute(assetTicker.getSymbol()),
-      this.retrieveAssetDividendsUseCase.execute(assetTicker.getSymbol(), 12)
-    ]);
+    let priceQuote: PriceQuote;
+    try {
+      priceQuote = await this.retrieveAssetPriceUseCase.execute(assetTicker.getSymbol());
+    } catch {
+      priceQuote = new PriceQuote({
+        currentPrice: 0,
+        previousClose: 0,
+        assetDescription: assetTicker.getSymbol()
+      });
+    }
 
-    const numericPrice = priceQuote.currentPrice.getAmount();
+    let dividendList: Dividend[] = [];
+    try {
+      dividendList = await this.retrieveAssetDividendsUseCase.execute(assetTicker.getSymbol(), 12);
+    } catch {
+      dividendList = [];
+    }
+
+    const numericPrice = priceQuote?.currentPrice?.getAmount
+      ? priceQuote.currentPrice.getAmount()
+      : 0;
 
     let latestDividendData = null;
-    if (dividendList.length > 0) {
+    if (dividendList && dividendList.length > 0) {
       const firstDividend = dividendList[0];
+      const dividendAmount = firstDividend.value?.getAmount ? firstDividend.value.getAmount() : 0;
       latestDividendData = {
-        dividendValue: firstDividend.value.getAmount(),
-        baseRecordDate: firstDividend.baseRecordDate,
-        paymentDistributionDate: firstDividend.paymentDistributionDate,
+        dividendValue: dividendAmount,
+        baseRecordDate: firstDividend.baseRecordDate || '',
+        paymentDistributionDate: firstDividend.paymentDistributionDate || '',
         yieldOnCurrentPricePercentage:
-          Math.round(firstDividend.calculateYieldOnCurrentPrice(numericPrice) * 100) / 100
+          numericPrice > 0 ? Math.round((dividendAmount / numericPrice) * 10000) / 100 : 0
       };
     }
 
-    const twelveMonthsDividendsTotal = dividendList.reduce(
-      (accumulator, dividendItem) => accumulator + dividendItem.value.getAmount(),
+    const twelveMonthsDividendsTotal = (dividendList || []).reduce(
+      (accumulator, dividendItem) =>
+        accumulator + (dividendItem.value?.getAmount ? dividendItem.value.getAmount() : 0),
       0
     );
 
@@ -89,15 +109,38 @@ export class RetrieveAssetSummaryUseCase {
     const gordonCeilingPriceCalculated =
       twelveMonthsDividendsTotal > 0 ? twelveMonthsDividendsTotal / 0.08 : 0;
 
-    const dailyVariation =
-      Math.round(priceQuote.calculateDailyVariationPercentage() * 100) / 100;
+    let dailyVariation = 0;
+    try {
+      dailyVariation =
+        Math.round(priceQuote.calculateDailyVariationPercentage() * 100) / 100;
+    } catch {
+      dailyVariation = 0;
+    }
 
-    const quoteJson = priceQuote.toJSON();
+    const quoteJson = priceQuote.toJSON ? priceQuote.toJSON() : {
+      currentPrice: numericPrice,
+      previousClose: 0,
+      openingPrice: null,
+      dayHighPrice: null,
+      dayLowPrice: null,
+      tradingVolume: 0,
+      fiftyTwoWeekHighPrice: null,
+      fiftyTwoWeekLowPrice: null,
+      trailingAnnualDividendYield: null,
+      dailyVariationPercentage: 0,
+      assetDescription: assetTicker.getSymbol(),
+      lastUpdatedAt: new Date().toISOString()
+    };
+
     const priceQuoteStructured = {
       ...quoteJson,
       dailyVariationPercentage: dailyVariation,
       lastUpdatedAt: new Date().toISOString()
     };
+
+    const previousCloseAmount = priceQuote?.previousClose?.getAmount
+      ? priceQuote.previousClose.getAmount()
+      : 0;
 
     return {
       ticker: assetTicker.getSymbol(),
@@ -105,9 +148,15 @@ export class RetrieveAssetSummaryUseCase {
       assetDescription: priceQuote.assetDescription || assetTicker.getSymbol(),
       priceQuote: priceQuoteStructured,
       currentPrice: numericPrice,
-      previousClosePrice: priceQuote.previousClose.getAmount(),
+      previousClosePrice: previousCloseAmount,
       dailyVariationPercentage: dailyVariation,
-      recentDividends: dividendList.map((d) => d.toJSON()),
+      recentDividends: (dividendList || []).map((d) => (d.toJSON ? d.toJSON() : {
+        dividendValue: 0,
+        formattedValue: 'R$ 0,00',
+        baseRecordDate: '',
+        paymentDistributionDate: '',
+        documentSourceUrl: null
+      })),
       latestDividendAnnouncement: latestDividendData,
       annualDividendSum: Math.round(twelveMonthsDividendsTotal * 100) / 100,
       trailingDividendYieldPercentage: Math.round(annualDividendYield * 100) / 100,

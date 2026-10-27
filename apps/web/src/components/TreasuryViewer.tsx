@@ -7,11 +7,11 @@ import {
   DollarSign,
   Search,
   ShieldCheck,
-  X,
-  SlidersHorizontal
+  X
 } from 'lucide-react';
 import { treasuryService } from '../services/apiClient';
 import { TreasuryBondItem } from '../types';
+import { CustomSelect } from './common/CustomSelect';
 
 export const TreasuryViewer: React.FC = () => {
   const [bondsList, setBondsList] = useState<TreasuryBondItem[]>([]);
@@ -132,7 +132,7 @@ export const TreasuryViewer: React.FC = () => {
           <p className="mt-1 text-2xl font-extrabold text-cyan-400">
             {maxIpcaRate ? `+${maxIpcaRate.toFixed(2)}%` : '-'}
           </p>
-          <div className="mt-1 text-[11px] text-slate-500">Acima da Inflação Oficial</div>
+          <div className="mt-1 text-[11px] text-slate-500">Juro Real + IPCA</div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
@@ -173,18 +173,15 @@ export const TreasuryViewer: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-400">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as any)}
-              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
-            >
-              <option value="rate" className="bg-slate-900 text-slate-200">Maior Taxa</option>
-              <option value="minPrice" className="bg-slate-900 text-slate-200">Menor Aporte Mínimo</option>
-              <option value="name" className="bg-slate-900 text-slate-200">Nome (A-Z)</option>
-            </select>
-          </div>
+          <CustomSelect
+            value={sortOption}
+            onChange={(val) => setSortOption(val as any)}
+            options={[
+              { value: 'rate', label: 'Maior Taxa Anual' },
+              { value: 'minPrice', label: 'Menor Aporte Mínimo' },
+              { value: 'name', label: 'Nome do Título (A-Z)' }
+            ]}
+          />
         </div>
       </div>
 

@@ -11,6 +11,7 @@ import { AlertRulesView } from './components/AlertRulesView';
 import { ApiDocsView } from './components/ApiDocsView';
 import { AdminView } from './components/AdminView';
 import { ProfileSettingsView } from './components/ProfileSettingsView';
+import { ToolsView } from './components/ToolsView';
 import { NotFoundView } from './components/NotFoundView';
 import { TermsModal } from './components/TermsModal';
 import { PrivacyModal } from './components/PrivacyModal';
@@ -38,6 +39,8 @@ const AppContent: React.FC = () => {
         return <AdminView />;
       case 'profile':
         return <ProfileSettingsView />;
+      case 'tools':
+        return <ToolsView />;
       default:
         return <NotFoundView onNavigate={setActiveTab} />;
     }
@@ -91,6 +94,11 @@ const AppContent: React.FC = () => {
                 <li>
                   <button onClick={() => setActiveTab('alerts')} className="hover:text-emerald-400 transition">
                     Alertas no WhatsApp
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => setActiveTab('tools')} className="hover:text-emerald-400 transition">
+                    Ferramentas & Simuladores
                   </button>
                 </li>
               </ul>

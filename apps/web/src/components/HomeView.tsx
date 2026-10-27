@@ -11,7 +11,8 @@ import {
   Database,
   Smartphone,
   CheckCircle2,
-  DollarSign
+  DollarSign,
+  Calculator
 } from 'lucide-react';
 import { ActiveNavigationTab } from './Navbar';
 import { useAuth } from '../context/AuthContext';
@@ -74,7 +75,7 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
         <div className="relative mx-auto max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
             <Zap className="h-3.5 w-3.5" />
-            <span>YieldIQ 2.0 &bull; Inteligência para Renda Passiva</span>
+            <span>YieldIQ v1.0.0 &bull; Inteligência para Renda Passiva</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
@@ -96,11 +97,11 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
             </button>
 
             <button
-              onClick={() => onSelectTab('treasury')}
+              onClick={() => onSelectTab('tools')}
               className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-6 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 hover:border-slate-600 transition"
             >
-              <Landmark className="h-4 w-4 text-emerald-400" />
-              <span>Ver Tesouro Direto</span>
+              <Calculator className="h-4 w-4 text-emerald-400" />
+              <span>Simulador de Renda</span>
             </button>
 
             {!currentUser ? (

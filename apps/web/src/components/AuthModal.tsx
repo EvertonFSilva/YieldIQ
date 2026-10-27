@@ -118,9 +118,11 @@ export const AuthModal: React.FC = () => {
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <input
                   type="text"
+                  minLength={3}
+                  maxLength={100}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="seu@email.com ou admin"
+                  placeholder="E-mail ou nome de usuário"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   required
                 />
@@ -136,9 +138,11 @@ export const AuthModal: React.FC = () => {
                   <User className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                   <input
                     type="text"
+                    minLength={3}
+                    maxLength={30}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ex: investidor_pro"
+                    placeholder="Nome de usuário (mín. 3 caracteres)"
                     className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     required
                   />
@@ -153,9 +157,10 @@ export const AuthModal: React.FC = () => {
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                   <input
                     type="email"
+                    maxLength={100}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
+                    placeholder="seu.email@exemplo.com"
                     className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     required
                   />
@@ -170,9 +175,11 @@ export const AuthModal: React.FC = () => {
               <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
               <input
                 type="password"
+                minLength={6}
+                maxLength={60}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Mínimo de 6 caracteres"
                 className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 required
               />

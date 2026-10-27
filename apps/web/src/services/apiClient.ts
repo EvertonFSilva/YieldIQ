@@ -240,7 +240,13 @@ export const adminService = {
 
   async updateUserPrivileges(
     id: string,
-    payload: { role?: string; alertQuota?: number }
+    payload: {
+      username?: string;
+      email?: string;
+      phone_number?: string | null;
+      role?: string;
+      alertQuota?: number;
+    }
   ): Promise<void> {
     await apiClient.patch(`/admin/users/${id}`, payload);
   },

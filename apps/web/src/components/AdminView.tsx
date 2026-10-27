@@ -9,13 +9,16 @@ import {
   Activity,
   Server,
   PieChart,
-  Users
+  Users,
+  Edit
 } from 'lucide-react';
 import { adminService } from '../services/apiClient';
 import { WhatsAppStatusData, WhatsAppGroupItem, GroupAlertItem, AdminUserItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ConfirmationModal } from './ConfirmationModal';
+import { EditUserModal } from './EditUserModal';
+import { CustomSwitch } from './common/CustomSwitch';
 
 export const AdminView: React.FC = () => {
   const { currentUser } = useAuth();
@@ -47,6 +50,8 @@ export const AdminView: React.FC = () => {
   const [newAlertNotifyDocument, setNewAlertNotifyDocument] = useState<boolean>(true);
   const [newAlertVariationPct, setNewAlertVariationPct] = useState<string>('2.0');
   const [isSubmittingAlert, setIsSubmittingAlert] = useState<boolean>(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<AdminUserItem | null>(null);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState<boolean>(false);
 
   const loadAllAdminData = async (): Promise<void> => {
     setIsLoading(true);
@@ -464,25 +469,19 @@ export const AdminView: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-6 pt-2 text-xs text-slate-300">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newAlertNotifyDividend}
-                  onChange={(e) => setNewAlertNotifyDividend(e.target.checked)}
-                  className="rounded text-emerald-500 focus:ring-emerald-500"
-                />
-                <span>Notificar Proventos</span>
-              </label>
+              <CustomSwitch
+                checked={newAlertNotifyDividend}
+                onChange={setNewAlertNotifyDividend}
+                label="Notificar Proventos"
+                description="Avisar em grupos no anúncio da Data Com"
+              />
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newAlertNotifyDocument}
-                  onChange={(e) => setNewAlertNotifyDocument(e.target.checked)}
-                  className="rounded text-emerald-500 focus:ring-emerald-500"
-                />
-                <span>Notificar Fatos Relevantes / CVM</span>
-              </label>
+              <CustomSwitch
+                checked={newAlertNotifyDocument}
+                onChange={setNewAlertNotifyDocument}
+                label="Notificar Fatos Relevantes / CVM"
+                description="Comunicados oficiais e relatórios"
+              />
             </div>
 
             <div className="flex justify-end gap-3 pt-3">
@@ -602,12 +601,25 @@ export const AdminView: React.FC = () => {
                     </td>
                     <td className="p-4 text-slate-300">{user.alert_quota} regras</td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={() => handlePromptToggleUserRole(user)}
-                        className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
-                      >
-                        {user.role === 'ADMINISTRATOR' ? 'Tornar Usuário' : 'Tornar Admin'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedUserForEdit(user);
+                            setIsEditUserModalOpen(true);
+                          }}
+                          className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-purple-300 hover:bg-slate-700 hover:text-white transition"
+                        >
+                          <Edit className="h-3 w-3" />
+                          <span>Editar</span>
+                        </button>
+
+                        <button
+                          onClick={() => handlePromptToggleUserRole(user)}
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                        >
+                          {user.role === 'ADMINISTRATOR' ? 'Tornar Usuário' : 'Tornar Admin'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -616,6 +628,13 @@ export const AdminView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <EditUserModal
+        isOpen={isEditUserModalOpen}
+        user={selectedUserForEdit}
+        onClose={() => setIsEditUserModalOpen(false)}
+        onUserUpdated={loadAllAdminData}
+      />
     </div>
   );
 };

@@ -19,6 +19,7 @@ import { userService } from '../services/apiClient';
 import { UserAccountProfile } from '../types';
 import { useToast } from '../context/ToastContext';
 import { ConfirmationModal } from './ConfirmationModal';
+import { CustomSwitch } from './common/CustomSwitch';
 
 export const ProfileSettingsView: React.FC = () => {
   const toast = useToast();
@@ -341,6 +342,8 @@ export const ProfileSettingsView: React.FC = () => {
                   <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
                   <input
                     type="text"
+                    minLength={10}
+                    maxLength={15}
                     value={phoneNumberInput}
                     onChange={(e) => setPhoneNumberInput(e.target.value)}
                     placeholder="Ex: 11999998888"
@@ -349,17 +352,13 @@ export const ProfileSettingsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
-                <input
-                  type="checkbox"
-                  id="whatsappToggle"
+              <div className="pt-1">
+                <CustomSwitch
                   checked={isWhatsAppEnabled}
-                  onChange={(e) => handleToggleWhatsApp(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-0"
+                  onChange={handleToggleWhatsApp}
+                  label="Habilitar envio de alertas para este número"
+                  description="Receber avisos em tempo real de proventos e cotações"
                 />
-                <label htmlFor="whatsappToggle" className="text-xs font-medium text-slate-300 cursor-pointer">
-                  Habilitar envio de alertas para este número
-                </label>
               </div>
 
               <div className="pt-2">

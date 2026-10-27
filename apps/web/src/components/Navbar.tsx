@@ -1,9 +1,9 @@
 import React from 'react';
-import { Bell, Compass, Landmark, User, Home, BookOpen, ShieldAlert, LogOut, LogIn } from 'lucide-react';
+import { Bell, Compass, Landmark, User, Home, BookOpen, ShieldAlert, LogOut, LogIn, Wrench } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
 
-export type ActiveNavigationTab = 'home' | 'assets' | 'treasury' | 'alerts' | 'docs' | 'admin' | 'profile';
+export type ActiveNavigationTab = 'home' | 'assets' | 'treasury' | 'alerts' | 'docs' | 'admin' | 'profile' | 'tools';
 
 interface NavbarProperties {
   activeTab: ActiveNavigationTab;
@@ -72,6 +72,18 @@ export const Navbar: React.FC<NavbarProperties> = ({
             >
               <Bell className="h-4 w-4" />
               <span>Alertas</span>
+            </button>
+
+            <button
+              onClick={() => onSelectTab('tools')}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                activeTab === 'tools'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <Wrench className="h-4 w-4" />
+              <span>Ferramentas</span>
             </button>
 
             <button

@@ -13,12 +13,12 @@ import {
   List,
   X,
   ChevronLeft,
-  ChevronRight,
-  SlidersHorizontal
+  ChevronRight
 } from 'lucide-react';
 import { assetService } from '../services/apiClient';
 import { AssetItem } from '../types';
 import { AssetDetailModal } from './AssetDetailModal';
+import { CustomSelect } from './common/CustomSelect';
 
 export const AssetExplorer: React.FC = () => {
   const [assetsList, setAssetsList] = useState<AssetItem[]>([]);
@@ -254,35 +254,29 @@ export const AssetExplorer: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-400">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
-            >
-              <option value="asc" className="bg-slate-900 text-slate-200">Código do Ativo (A-Z)</option>
-              <option value="desc" className="bg-slate-900 text-slate-200">Código do Ativo (Z-A)</option>
-            </select>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <CustomSelect
+            value={sortOrder}
+            onChange={(val) => setSortOrder(val as 'asc' | 'desc')}
+            options={[
+              { value: 'asc', label: 'Código do Ativo (A-Z)' },
+              { value: 'desc', label: 'Código do Ativo (Z-A)' }
+            ]}
+          />
 
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-400">
-            <span className="text-[11px] text-slate-500">Por pág:</span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
-            >
-              <option value={24} className="bg-slate-900 text-slate-200">24</option>
-              <option value={48} className="bg-slate-900 text-slate-200">48</option>
-              <option value={96} className="bg-slate-900 text-slate-200">96</option>
-              <option value={999} className="bg-slate-900 text-slate-200">Todos</option>
-            </select>
-          </div>
+          <CustomSelect
+            value={itemsPerPage}
+            onChange={(val) => {
+              setItemsPerPage(Number(val));
+              setCurrentPage(1);
+            }}
+            options={[
+              { value: 24, label: '24 por pág' },
+              { value: 48, label: '48 por pág' },
+              { value: 96, label: '96 por pág' },
+              { value: 999, label: 'Todos os ativos' }
+            ]}
+          />
         </div>
       </div>
 
