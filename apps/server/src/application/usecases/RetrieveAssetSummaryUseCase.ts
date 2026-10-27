@@ -3,6 +3,7 @@ import { RetrieveAssetDividendsUseCase } from './RetrieveAssetDividendsUseCase';
 import { Ticker } from '../../domain/value-objects/Ticker';
 import { PriceQuote } from '../../domain/entities/PriceQuote';
 import { Dividend } from '../../domain/entities/Dividend';
+import { fnetDocumentProvider, ResolvedAssetDetails } from '../../infrastructure/scrapers/FnetDocumentProvider';
 
 export interface AssetSummaryData {
   ticker: string;
@@ -44,6 +45,7 @@ export interface AssetSummaryData {
   bazinCeilingPrice: number;
   gordonCeilingPrice: number;
   lastUpdatedAt: string;
+  institutionalDetails?: ResolvedAssetDetails | null;
 }
 
 export class RetrieveAssetSummaryUseCase {
@@ -72,6 +74,13 @@ export class RetrieveAssetSummaryUseCase {
       dividendList = await this.retrieveAssetDividendsUseCase.execute(assetTicker.getSymbol(), 12);
     } catch {
       dividendList = [];
+    }
+
+    let institutionalDetails: ResolvedAssetDetails | null = null;
+    try {
+      institutionalDetails = await fnetDocumentProvider.resolveAssetDetails(assetTicker.getSymbol());
+    } catch {
+      institutionalDetails = null;
     }
 
     const numericPrice = priceQuote?.currentPrice?.getAmount
@@ -145,7 +154,10 @@ export class RetrieveAssetSummaryUseCase {
     return {
       ticker: assetTicker.getSymbol(),
       tickerSymbol: assetTicker.getSymbol(),
-      assetDescription: priceQuote.assetDescription || assetTicker.getSymbol(),
+      assetDescription:
+        institutionalDetails?.fundName ||
+        priceQuote.assetDescription ||
+        assetTicker.getSymbol(),
       priceQuote: priceQuoteStructured,
       currentPrice: numericPrice,
       previousClosePrice: previousCloseAmount,
@@ -164,7 +176,8 @@ export class RetrieveAssetSummaryUseCase {
       bazinCeilingPriceSixPercent: Math.round(bazinCeilingPriceCalculated * 100) / 100,
       bazinCeilingPrice: Math.round(bazinCeilingPriceCalculated * 100) / 100,
       gordonCeilingPrice: Math.round(gordonCeilingPriceCalculated * 100) / 100,
-      lastUpdatedAt: new Date().toISOString()
+      lastUpdatedAt: new Date().toISOString(),
+      institutionalDetails
     };
   }
 }

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ActiveNavigationTab } from './Navbar';
 import { useAuth } from '../context/AuthContext';
+import { PhoneMockup } from './PhoneMockup';
 
 interface HomeViewProperties {
   onSelectTab: (selectedTab: ActiveNavigationTab) => void;
@@ -68,65 +69,126 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
   ];
 
   return (
-    <div className="space-y-16 animate-fadeIn">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/40 to-slate-950 p-8 sm:p-12 lg:p-16 text-center">
+    <div className="space-y-16 animate-fadeIn transition-all duration-300">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/40 to-slate-950 p-6 sm:p-10 lg:p-14 shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
 
-        <div className="relative mx-auto max-w-3xl space-y-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
-            <Zap className="h-3.5 w-3.5" />
-            <span>YieldIQ v1.0.0 &bull; Inteligência para Renda Passiva</span>
+        {!currentUser ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-7 space-y-6 text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
+                <Zap className="h-3.5 w-3.5" />
+                <span>YieldIQ v1.0.0 &bull; Terminal Institucional B3 & CVM</span>
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+                Inteligência Analítica & Alertas em Tempo Real para{' '}
+                <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+                  FIIs e Tesouro Direto
+                </span>
+              </h1>
+
+              <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
+                Acompanhe cotações instantâneas, histórico de proventos da B3, fatos relevantes FNET CVM e taxas oficiais do Tesouro Nacional com alertas automatizados direto no seu WhatsApp.
+              </p>
+
+              <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
+                <button
+                  onClick={() => onSelectTab('assets')}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition"
+                >
+                  <Compass className="h-4 w-4" />
+                  <span>Explorar 620+ Ativos</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+
+                <button
+                  onClick={() => onSelectTab('tools')}
+                  className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-6 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 hover:border-slate-600 transition"
+                >
+                  <Calculator className="h-4 w-4 text-emerald-400" />
+                  <span>Central de Ferramentas</span>
+                </button>
+
+                <button
+                  onClick={() => openAuthModal('register')}
+                  className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span>Ativar Alertas WhatsApp</span>
+                </button>
+              </div>
+
+              <div className="pt-2 flex items-center gap-6 text-xs text-slate-400 border-t border-slate-800/80">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>Sem necessidade de app</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>Dados oficiais B3 & CVM</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>Criptografia ponta a ponta</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 flex justify-center">
+              <PhoneMockup />
+            </div>
           </div>
+        ) : (
+          <div className="relative mx-auto max-w-3xl space-y-6 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
+              <Zap className="h-3.5 w-3.5" />
+              <span>YieldIQ Pro &bull; Sessão Ativa: {currentUser.username}</span>
+            </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
-            Monitore <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">FIIs, FIAGROs, FI-INFRAs</span> e o Tesouro em Tempo Real
-          </h1>
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
+              Painel de Inteligência para{' '}
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+                Renda Passiva & Valuation
+              </span>
+            </h1>
 
-          <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            Acompanhe cotações instantâneas, dividendos históricos da B3, fatos relevantes FNET CVM, taxas do Tesouro Direto e configure alertas automatizados direto no seu WhatsApp.
-          </p>
+            <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
+              Consulte a base completa de ativos da B3, simule preços teto pelo método Décio Bazin e configure regras de disparo para o seu WhatsApp.
+            </p>
 
-          <div className="pt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <button
-              onClick={() => onSelectTab('assets')}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition"
-            >
-              <Compass className="h-4 w-4" />
-              <span>Explorar 620+ Ativos</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-
-            <button
-              onClick={() => onSelectTab('tools')}
-              className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-6 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 hover:border-slate-600 transition"
-            >
-              <Calculator className="h-4 w-4 text-emerald-400" />
-              <span>Simulador de Renda</span>
-            </button>
-
-            {!currentUser ? (
+            <div className="pt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               <button
-                onClick={() => openAuthModal('register')}
-                className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                onClick={() => onSelectTab('assets')}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition"
               >
-                <Bell className="h-4 w-4" />
-                <span>Ativar Alertas WhatsApp</span>
+                <Compass className="h-4 w-4" />
+                <span>Explorar Ativos da B3</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
-            ) : (
+
+              <button
+                onClick={() => onSelectTab('tools')}
+                className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-6 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 hover:border-slate-600 transition"
+              >
+                <Calculator className="h-4 w-4 text-emerald-400" />
+                <span>Ferramentas de Valuation</span>
+              </button>
+
               <button
                 onClick={() => onSelectTab('alerts')}
                 className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
               >
                 <Bell className="h-4 w-4" />
-                <span>Meus Alertas</span>
+                <span>Gerenciar Meus Alertas</span>
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm shadow-sm hover:border-slate-700 transition">
           <div className="flex items-center gap-3 text-emerald-400 mb-2">
             <Database className="h-5 w-5" />
             <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Ativos Monitorados</span>
@@ -135,7 +197,7 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
           <p className="text-xs text-slate-400 mt-1">531 FIIs &bull; 50 FIAGROs &bull; 41 FI-INFRAs</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm shadow-sm hover:border-slate-700 transition">
           <div className="flex items-center gap-3 text-teal-400 mb-2">
             <Landmark className="h-5 w-5" />
             <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Tesouro Direto</span>
@@ -144,7 +206,7 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
           <p className="text-xs text-slate-400 mt-1">Selic, IPCA+, Prefixados, Renda+, Educa+</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm shadow-sm hover:border-slate-700 transition">
           <div className="flex items-center gap-3 text-amber-400 mb-2">
             <Zap className="h-5 w-5" />
             <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Latência de Cache</span>
@@ -153,7 +215,7 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
           <p className="text-xs text-slate-400 mt-1">Cache de múltiplos níveis em memória</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm shadow-sm hover:border-slate-700 transition">
           <div className="flex items-center gap-3 text-emerald-400 mb-2">
             <Smartphone className="h-5 w-5" />
             <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Alertas WhatsApp</span>

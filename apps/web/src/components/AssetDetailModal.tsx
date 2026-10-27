@@ -290,6 +290,68 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                     </div>
                   </div>
                 </div>
+
+                {summaryData.institutionalDetails && (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                      Informações Cadastrais & Governança (B3 & CVM)
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                      {summaryData.institutionalDetails.cnpj && (
+                        <div>
+                          <span className="text-slate-500 block">CNPJ do Fundo</span>
+                          <span className="font-mono font-semibold text-white">
+                            {summaryData.institutionalDetails.cnpj}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.institutionalDetails.positionManager && (
+                        <div className="sm:col-span-2">
+                          <span className="text-slate-500 block">Administrador / Gestor Fiduciário</span>
+                          <span className="font-medium text-slate-200">
+                            {summaryData.institutionalDetails.positionManager}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.institutionalDetails.quotaCount && (
+                        <div>
+                          <span className="text-slate-500 block">Total de Cotas Emitidas</span>
+                          <span className="font-mono font-semibold text-slate-200">
+                            {summaryData.institutionalDetails.quotaCount}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.institutionalDetails.classification && (
+                        <div>
+                          <span className="text-slate-500 block">Classificação ANBIMA / B3</span>
+                          <span className="font-semibold text-slate-200">
+                            {summaryData.institutionalDetails.classification}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.institutionalDetails.webSite && (
+                        <div>
+                          <span className="text-slate-500 block">Portal Institucional</span>
+                          <a
+                            href={
+                              summaryData.institutionalDetails.webSite.startsWith('http')
+                                ? summaryData.institutionalDetails.webSite
+                                : `https://${summaryData.institutionalDetails.webSite}`
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-emerald-400 hover:underline"
+                          >
+                            <span className="truncate max-w-[180px]">
+                              {summaryData.institutionalDetails.webSite}
+                            </span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -12,8 +12,12 @@ import {
   Trash2,
   ChevronDown,
   Activity,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Upload,
+  Download,
+  HelpCircle
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { assetService, treasuryService } from '../services/apiClient';
 import { TreasuryBondItem } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -28,7 +32,8 @@ type ToolId =
   | 'avg_price_sim'
   | 'fire_four_percent'
   | 'multi_comparator'
-  | 'tax_statement';
+  | 'tax_statement'
+  | 'b3_earnings_calculator';
 
 interface MultiAssetComparisonSlot {
   ticker: string;
@@ -420,6 +425,200 @@ export const ToolsView: React.FC = () => {
     };
   }, [tradeOperations]);
 
+  const [earningsConversions, setEarningsConversions] = useState<
+    Array<{ id: string; oldTicker: string; newTicker: string }>
+  >([
+    { id: '1', oldTicker: 'CVBI11', newTicker: 'PCIP11' },
+    { id: '2', oldTicker: 'GALG11', newTicker: 'GARE11' },
+    { id: '3', oldTicker: 'MALL11', newTicker: 'PMLL11' }
+  ]);
+  const [earningsSplits, setEarningsSplits] = useState<
+    Array<{ id: string; ticker: string; date: string; ratio: number }>
+  >([
+    { id: '1', ticker: 'HGBS11', date: '19/05/2025', ratio: 10 }
+  ]);
+  const [earningsRecords, setEarningsRecords] = useState<
+    Array<{
+      id: string;
+      date: string;
+      paymentDate: string;
+      rawTicker: string;
+      resolvedTicker: string;
+      type: string;
+      quantity: number;
+      unitValue: number;
+      totalValue: number;
+      year: number;
+    }>
+  >([]);
+  const [selectedEarningsYear, setSelectedEarningsYear] = useState<number | 'all'>('all');
+  const [isProcessingEarnings, setIsProcessingEarnings] = useState<boolean>(false);
+
+  const handleProcessExcelFile = async (file: File): Promise<void> => {
+    setIsProcessingEarnings(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows: any[] = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+
+      const conversionMap: Record<string, string> = {};
+      earningsConversions.forEach((c) => {
+        if (c.oldTicker && c.newTicker) {
+          conversionMap[c.oldTicker.trim().toUpperCase()] = c.newTicker.trim().toUpperCase();
+        }
+      });
+
+      const parsedItems: any[] = [];
+      rawRows.forEach((row, idx) => {
+        const prod = String(row['Produto'] || row['Ativo'] || row['Papel'] || '').trim();
+        const rawTicker = (prod.split(' - ')[0] || '').trim().toUpperCase();
+        if (!rawTicker || rawTicker.length < 4) return;
+
+        const resolvedTicker = conversionMap[rawTicker] || rawTicker;
+        const movType = String(
+          row['Tipo de Movimentação'] || row['Movimentação'] || row['Tipo'] || 'Rendimento'
+        ).trim();
+        const dateStr = String(row['Data'] || row['Data com'] || '').trim();
+        const paymentDateStr = String(
+          row['Data de Pagamento'] || row['Pagamento'] || dateStr
+        ).trim();
+
+        let totalVal = 0;
+        const rawTotal = row['Valor da Operação'] || row['Valor Total'] || row['Total'] || 0;
+        if (typeof rawTotal === 'number') {
+          totalVal = rawTotal;
+        } else {
+          totalVal =
+            parseFloat(
+              String(rawTotal)
+                .replace('R$', '')
+                .trim()
+                .replace(/\./g, '')
+                .replace(',', '.')
+            ) || 0;
+        }
+
+        let quantity = 0;
+        const rawQty = row['Quantidade'] || row['Qtd'] || 0;
+        if (typeof rawQty === 'number') {
+          quantity = rawQty;
+        } else {
+          quantity = parseFloat(String(rawQty).replace(/\./g, '').replace(',', '.')) || 0;
+        }
+
+        let unitVal = 0;
+        const rawUnit =
+          row['Preço unitário'] || row['Preço Unitário'] || row['Valor Unitário'] || 0;
+        if (typeof rawUnit === 'number') {
+          unitVal = rawUnit;
+        } else {
+          unitVal =
+            parseFloat(
+              String(rawUnit)
+                .replace('R$', '')
+                .trim()
+                .replace(/\./g, '')
+                .replace(',', '.')
+            ) || 0;
+        }
+
+        let year = new Date().getFullYear();
+        if (paymentDateStr.includes('/')) {
+          const parts = paymentDateStr.split('/');
+          if (parts.length === 3 && parts[2].length === 4) {
+            year = parseInt(parts[2], 10);
+          }
+        } else if (dateStr.includes('/')) {
+          const parts = dateStr.split('/');
+          if (parts.length === 3 && parts[2].length === 4) {
+            year = parseInt(parts[2], 10);
+          }
+        }
+
+        if (totalVal > 0) {
+          parsedItems.push({
+            id: `row-${idx}`,
+            date: dateStr || '-',
+            paymentDate: paymentDateStr || '-',
+            rawTicker,
+            resolvedTicker,
+            type: movType,
+            quantity,
+            unitValue: unitVal > 0 ? unitVal : quantity > 0 ? totalVal / quantity : 0,
+            totalValue: totalVal,
+            year
+          });
+        }
+      });
+
+      setEarningsRecords(parsedItems);
+      toast.success(`${parsedItems.length} lançamentos de proventos processados com sucesso!`);
+    } catch {
+      toast.error('Erro ao processar planilha Excel. Certifique-se de que é o extrato da B3.');
+    } finally {
+      setIsProcessingEarnings(false);
+    }
+  };
+
+  const handleLoadDemoEarnings = (): void => {
+    const demoItems = [
+      { id: 'd1', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
+      { id: 'd2', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
+      { id: 'd3', date: '30/09/2026', paymentDate: '14/10/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
+      { id: 'd4', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1200, unitValue: 0.10, totalValue: 120.00, year: 2026 },
+      { id: 'd5', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 150, unitValue: 1.10, totalValue: 165.00, year: 2026 },
+      { id: 'd6', date: '31/08/2026', paymentDate: '14/09/2026', rawTicker: 'XPML11', resolvedTicker: 'XPML11', type: 'Rendimento', quantity: 80, unitValue: 0.92, totalValue: 73.60, year: 2026 },
+      { id: 'd7', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'GALG11', resolvedTicker: 'GARE11', type: 'Rendimento', quantity: 300, unitValue: 0.086, totalValue: 25.80, year: 2026 },
+      { id: 'd8', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 1000, unitValue: 0.10, totalValue: 100.00, year: 2026 },
+      { id: 'd9', date: '31/07/2026', paymentDate: '14/08/2026', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 120, unitValue: 1.10, totalValue: 132.00, year: 2026 },
+      { id: 'd10', date: '29/12/2025', paymentDate: '14/01/2026', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2026 },
+      { id: 'd11', date: '28/11/2025', paymentDate: '12/12/2025', rawTicker: 'HGLG11', resolvedTicker: 'HGLG11', type: 'Rendimento', quantity: 100, unitValue: 1.10, totalValue: 110.00, year: 2025 },
+      { id: 'd12', date: '28/11/2025', paymentDate: '12/12/2025', rawTicker: 'MXRF11', resolvedTicker: 'MXRF11', type: 'Rendimento', quantity: 800, unitValue: 0.11, totalValue: 88.00, year: 2025 },
+      { id: 'd13', date: '31/10/2025', paymentDate: '14/11/2025', rawTicker: 'CVBI11', resolvedTicker: 'PCIP11', type: 'Rendimento', quantity: 200, unitValue: 0.95, totalValue: 190.00, year: 2025 }
+    ];
+    setEarningsRecords(demoItems);
+    toast.success('Extrato de demonstração carregado com 13 lançamentos!');
+  };
+
+  const earningsYearsList = useMemo(() => {
+    const yearsSet = new Set<number>();
+    earningsRecords.forEach((item) => yearsSet.add(item.year));
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [earningsRecords]);
+
+  const filteredEarningsRecords = useMemo(() => {
+    if (selectedEarningsYear === 'all') return earningsRecords;
+    return earningsRecords.filter((r) => r.year === selectedEarningsYear);
+  }, [earningsRecords, selectedEarningsYear]);
+
+  const earningsMetrics = useMemo(() => {
+    const total = filteredEarningsRecords.reduce((acc, cur) => acc + cur.totalValue, 0);
+    const monthsCount = selectedEarningsYear === 'all' ? Math.max(1, earningsYearsList.length * 12) : 12;
+    const monthlyAverage = total / monthsCount;
+
+    const totalsByAsset: Record<string, number> = {};
+    filteredEarningsRecords.forEach((item) => {
+      totalsByAsset[item.resolvedTicker] = (totalsByAsset[item.resolvedTicker] || 0) + item.totalValue;
+    });
+
+    let topAsset = 'Nenhum';
+    let topVal = 0;
+    Object.entries(totalsByAsset).forEach(([ticker, val]) => {
+      if (val > topVal) {
+        topVal = val;
+        topAsset = `${ticker} (R$ ${val.toFixed(2)})`;
+      }
+    });
+
+    return {
+      total,
+      monthlyAverage,
+      topAsset,
+      count: filteredEarningsRecords.length
+    };
+  }, [filteredEarningsRecords, selectedEarningsYear, earningsYearsList]);
+
   const toolsList: Array<{
     id: ToolId;
     category: ToolCategory;
@@ -499,6 +698,14 @@ export const ToolsView: React.FC = () => {
       description: 'Controle de operações para declaração de IRPF com saldo em custódia.',
       badge: 'Fiscal IRPF',
       icon: <FileSpreadsheet className="h-5 w-5 text-cyan-400" />
+    },
+    {
+      id: 'b3_earnings_calculator',
+      category: 'treasury_fire',
+      title: 'Extrato B3 & Cálculo de Proventos',
+      description: 'Totalize proventos recebidos por ano e ativo via planilha Excel da B3 com conversões e desdobramentos.',
+      badge: 'Extrato B3',
+      icon: <Upload className="h-5 w-5 text-emerald-400" />
     }
   ];
 
@@ -514,7 +721,7 @@ export const ToolsView: React.FC = () => {
         <div className="relative z-10 space-y-4 max-w-4xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-400">
             <Wrench className="h-4 w-4" />
-            <span>YieldIQ Financial Suite &bull; 9 Ferramentas Avançadas</span>
+            <span>YieldIQ Financial Suite &bull; 10 Ferramentas Avançadas</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
             Central de Ferramentas, Valuation & Gestão
@@ -525,7 +732,7 @@ export const ToolsView: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {[
-              { id: 'all', label: 'Todas as 9 Ferramentas' },
+              { id: 'all', label: 'Todas as 10 Ferramentas' },
               { id: 'simulators', label: 'Simuladores & Renda' },
               { id: 'valuation', label: 'Valuation & Análise' },
               { id: 'treasury_fire', label: 'Tesouro, FIRE & Fiscal' }
@@ -1651,6 +1858,311 @@ export const ToolsView: React.FC = () => {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeToolId === 'b3_earnings_calculator' && (
+          <div className="space-y-8 animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className="lg:col-span-5 space-y-6">
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-xl">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Upload className="h-5 w-5 text-emerald-400" />
+                    <h2 className="text-base font-bold text-white">Importar Extrato Oficial da B3</h2>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                      <HelpCircle className="h-4 w-4 shrink-0" />
+                      <span>Como obter seu extrato oficial:</span>
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-400 leading-relaxed">
+                      <li>Acesse <strong className="text-white">investidor.b3.com.br</strong> e faça login.</li>
+                      <li>No menu lateral, clique em <strong className="text-white">Extratos</strong>.</li>
+                      <li>Clique em <strong className="text-white">Filtrar</strong> e defina o período desde o início.</li>
+                      <li>Em Tipo de Movimentação, selecione <strong className="text-white">"Proventos recebidos"</strong>.</li>
+                      <li>Em Investimento, marque <strong className="text-white">FII e Fundos de Investimentos</strong>.</li>
+                      <li>Clique em Filtrar, depois em Baixar e escolha o formato <strong className="text-emerald-400">Excel (.xlsx)</strong>.</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Arquivo de Movimentação (.xlsx)
+                    </label>
+                    <div className="relative rounded-2xl border-2 border-dashed border-slate-800 bg-slate-950/60 p-6 text-center hover:border-emerald-500/50 transition group">
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleProcessExcelFile(e.target.files[0]);
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <div className="rounded-xl bg-slate-900 p-3 text-emerald-400 group-hover:scale-110 transition">
+                          <Upload className="h-6 w-6" />
+                        </div>
+                        <span className="text-xs font-semibold text-white">
+                          {isProcessingEarnings ? 'Processando proventos...' : 'Clique ou arraste seu arquivo Excel aqui'}
+                        </span>
+                        <span className="text-[11px] text-slate-500">Formatos aceitos: .xlsx da B3</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleLoadDemoEarnings}
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950/80 hover:bg-slate-900 py-2.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center justify-center gap-2"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Carregar Dados de Exemplo da B3</span>
+                    </button>
+                  </div>
+
+                  <div className="border-t border-slate-800 pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Conversão de Ativos (Fusões / Mudanças de Ticker)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEarningsConversions((prev) => [
+                            ...prev,
+                            { id: String(Date.now()), oldTicker: '', newTicker: '' }
+                          ]);
+                        }}
+                        className="text-[11px] text-emerald-400 hover:underline font-semibold"
+                      >
+                        + Adicionar
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                      {earningsConversions.map((conv, idx) => (
+                        <div key={conv.id} className="flex items-center gap-2 text-xs">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="Antigo"
+                            value={conv.oldTicker}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setEarningsConversions((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, oldTicker: val } : item))
+                              );
+                            }}
+                            className="w-24 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-xs text-white uppercase outline-none focus:border-emerald-500"
+                          />
+                          <span className="text-slate-500 font-bold">&rarr;</span>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="Novo"
+                            value={conv.newTicker}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setEarningsConversions((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, newTicker: val } : item))
+                              );
+                            }}
+                            className="w-24 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-xs text-white uppercase outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEarningsConversions((prev) => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-800 pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Desdobramentos (Splits de Cotas)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEarningsSplits((prev) => [
+                            ...prev,
+                            { id: String(Date.now()), ticker: '', date: '', ratio: 10 }
+                          ]);
+                        }}
+                        className="text-[11px] text-emerald-400 hover:underline font-semibold"
+                      >
+                        + Adicionar
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                      {earningsSplits.map((split, idx) => (
+                        <div key={split.id} className="flex items-center gap-2 text-xs">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="Ativo"
+                            value={split.ticker}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setEarningsSplits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, ticker: val } : item))
+                              );
+                            }}
+                            className="w-20 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-xs text-white uppercase outline-none focus:border-emerald-500"
+                          />
+                          <input
+                            type="text"
+                            placeholder="DD/MM/AAAA"
+                            value={split.date}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEarningsSplits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, date: val } : item))
+                              );
+                            }}
+                            className="w-24 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 font-mono text-xs text-white outline-none focus:border-emerald-500"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="Razão"
+                            value={split.ratio}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setEarningsSplits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, ratio: val } : item))
+                              );
+                            }}
+                            className="w-16 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 font-mono text-xs text-white outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEarningsSplits((prev) => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-7 space-y-6">
+                <div className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-6 sm:p-8 space-y-6 shadow-2xl">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Total Acumulado de Proventos</span>
+                    <p className="mt-1 text-3xl sm:text-5xl font-extrabold text-white">
+                      R$ {earningsMetrics.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Média mensal de renda passiva: <strong className="text-emerald-400">R$ {earningsMetrics.monthlyAverage.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} /mês</strong>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60">
+                      <span className="text-[11px] text-slate-400 block">Ativo com Maior Retorno</span>
+                      <span className="text-base font-bold text-white font-mono">{earningsMetrics.topAsset}</span>
+                    </div>
+                    <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60">
+                      <span className="text-[11px] text-slate-400 block">Lançamentos Processados</span>
+                      <span className="text-base font-bold text-emerald-400 font-mono">{earningsMetrics.count} proventos</span>
+                    </div>
+                  </div>
+
+                  {earningsYearsList.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
+                      <span className="text-xs font-semibold text-slate-400 mr-2">Filtrar por Ano:</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEarningsYear('all')}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                          selectedEarningsYear === 'all'
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Todos os Anos
+                      </button>
+                      {earningsYearsList.map((yr) => (
+                        <button
+                          key={yr}
+                          type="button"
+                          onClick={() => setSelectedEarningsYear(yr)}
+                          className={`rounded-xl px-3 py-1.5 text-xs font-bold transition font-mono ${
+                            selectedEarningsYear === yr
+                              ? 'bg-emerald-500 text-slate-950'
+                              : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {yr}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                    <table className="w-full text-left font-mono text-xs">
+                      <thead>
+                        <tr className="bg-slate-950 border-b border-slate-800 text-slate-400">
+                          <th className="p-3">Data Pagamento</th>
+                          <th className="p-3">Ativo</th>
+                          <th className="p-3">Tipo</th>
+                          <th className="p-3">Qtd</th>
+                          <th className="p-3">Valor/Cota</th>
+                          <th className="p-3 text-right">Total Recebido</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 bg-slate-950/40 text-[11px]">
+                        {filteredEarningsRecords.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-slate-500">
+                              Nenhum extrato carregado ainda. Importe seu arquivo Excel (.xlsx) ou clique em "Carregar Dados de Exemplo".
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredEarningsRecords.map((item) => (
+                            <tr key={item.id} className="hover:bg-slate-900/40">
+                              <td className="p-3 text-slate-300">{item.paymentDate}</td>
+                              <td className="p-3">
+                                <span className="font-bold text-white">{item.resolvedTicker}</span>
+                                {item.rawTicker !== item.resolvedTicker && (
+                                  <span className="text-[10px] text-slate-500 ml-1.5">({item.rawTicker})</span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] text-emerald-400 font-semibold border border-slate-800">
+                                  {item.type}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-300">{item.quantity > 0 ? item.quantity : '-'}</td>
+                              <td className="p-3 text-slate-300">R$ {item.unitValue.toFixed(2)}</td>
+                              <td className="p-3 text-right font-bold text-emerald-400">
+                                R$ {item.totalValue.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>

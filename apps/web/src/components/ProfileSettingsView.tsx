@@ -324,8 +324,16 @@ export const ProfileSettingsView: React.FC = () => {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Digite sua senha atual"
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 pr-10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordFields(!showPasswordFields)}
+                      aria-label="Alternar visibilidade da senha"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition"
+                    >
+                      {showPasswordFields ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -334,47 +342,58 @@ export const ProfileSettingsView: React.FC = () => {
                     <label className="block text-xs font-medium text-slate-300 mb-1">
                       Nova Senha
                     </label>
-                    <input
-                      type={showPasswordFields ? 'text' : 'password'}
-                      minLength={6}
-                      maxLength={60}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPasswordFields ? 'text' : 'password'}
+                        minLength={6}
+                        maxLength={60}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 pr-10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordFields(!showPasswordFields)}
+                        aria-label="Alternar visibilidade da senha"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition"
+                      >
+                        {showPasswordFields ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
                       Confirmar Senha
                     </label>
-                    <input
-                      type={showPasswordFields ? 'text' : 'password'}
-                      minLength={6}
-                      maxLength={60}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Repita a nova senha"
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPasswordFields ? 'text' : 'password'}
+                        minLength={6}
+                        maxLength={60}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repita a nova senha"
+                        className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 pr-10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordFields(!showPasswordFields)}
+                        aria-label="Alternar visibilidade da senha"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition"
+                      >
+                        {showPasswordFields ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordFields(!showPasswordFields)}
-                    className="text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center gap-1"
-                  >
-                    {showPasswordFields ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    <span>{showPasswordFields ? 'Ocultar caracteres' : 'Exibir caracteres'}</span>
-                  </button>
-
+                <div className="flex items-center justify-end pt-1">
                   <button
                     type="submit"
                     disabled={isSavingPassword || !currentPassword || !newPassword}
-                    className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 transition disabled:opacity-50"
+                    className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-2 text-xs font-bold text-slate-950 transition disabled:opacity-50"
                   >
                     {isSavingPassword ? 'Atualizando...' : 'Alterar Senha'}
                   </button>
@@ -538,14 +557,14 @@ export const ProfileSettingsView: React.FC = () => {
 
               <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Taxa de Sucesso (200 OK)</span>
+                  <span>Disponibilidade Operacional</span>
                   <Server className="h-4 w-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-extrabold text-emerald-400">Excelente</div>
+                <div className="text-2xl font-extrabold text-emerald-400">99,9%</div>
                 <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '100%' }} />
+                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '99.9%' }} />
                 </div>
-                <span className="text-[10px] text-slate-500 block">Zero falhas de infraestrutura</span>
+                <span className="text-[10px] text-slate-500 block">SLA 99.9% &bull; Alta Disponibilidade Ativa</span>
               </div>
             </div>
 

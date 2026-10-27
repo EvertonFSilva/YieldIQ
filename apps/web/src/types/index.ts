@@ -48,6 +48,16 @@ export interface AssetSummaryData {
   trailingDividendYieldPercentage: number;
   bazinCeilingPriceSixPercent: number;
   gordonCeilingPrice: number;
+  institutionalDetails?: {
+    cnpj?: string | null;
+    fundName?: string | null;
+    tradingName?: string | null;
+    classification?: string | null;
+    webSite?: string | null;
+    positionManager?: string | null;
+    quotaCount?: string | null;
+    segment?: string | null;
+  } | null;
 }
 
 export interface TreasuryBondItem {
