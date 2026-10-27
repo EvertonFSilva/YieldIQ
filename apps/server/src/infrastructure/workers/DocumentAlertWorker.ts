@@ -96,19 +96,44 @@ export class DocumentAlertWorker {
 
             const isMaterialFact =
               documentCategoryLower.includes('fato relevante') ||
-              documentDescriptionLower.includes('fato relevante') ||
-              documentCategoryLower.includes('comunicado');
+              documentDescriptionLower.includes('fato relevante');
 
             const isReport =
               documentCategoryLower.includes('relat') ||
               documentDescriptionLower.includes('relatório');
 
-            const headerIcon = isMaterialFact ? '🚨' : isReport ? '📑' : '📢';
+            const isOffering =
+              documentCategoryLower.includes('oferta') ||
+              documentDescriptionLower.includes('oferta') ||
+              documentDescriptionLower.includes('emissão') ||
+              documentDescriptionLower.includes('subscrição');
+
+            const isStatement =
+              documentCategoryLower.includes('demonstraç') ||
+              documentCategoryLower.includes('informe') ||
+              documentDescriptionLower.includes('demonstrações');
+
+            let alertEventType = 'MARKET_ANNOUNCEMENT';
+            if (isMaterialFact) {
+              alertEventType = 'MATERIAL_FACT';
+            } else if (isReport) {
+              alertEventType = 'MANAGEMENT_REPORT';
+            } else if (isOffering) {
+              alertEventType = 'PUBLIC_OFFERING';
+            } else if (isStatement) {
+              alertEventType = 'FINANCIAL_STATEMENT';
+            }
+
+            const headerIcon = isMaterialFact ? '🚨' : isReport ? '📑' : isOffering ? '📢' : '📄';
             const categoryTitle = isMaterialFact
               ? 'FATO RELEVANTE'
               : isReport
               ? 'RELATÓRIO GERENCIAL'
-              : 'COMUNICADO OFICIAL';
+              : isOffering
+              ? 'OFERTA PÚBLICA'
+              : isStatement
+              ? 'DEMONSTRAÇÃO FINANCEIRA'
+              : 'COMUNICADO AO MERCADO';
 
             const documentMessage =
               `${headerIcon} *NOVO DOCUMENTO PUBLICADO - ${tickerSymbol}*\n\n` +
@@ -148,7 +173,7 @@ export class DocumentAlertWorker {
                     user_id: rule.userId,
                     destination: destination,
                     target_symbol: tickerSymbol,
-                    alert_type: 'DOCUMENT_DISCLOSURE',
+                    alert_type: alertEventType,
                     message: documentMessage,
                     payload: {
                       document_url: documentItem.documentDownloadUrl,

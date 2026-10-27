@@ -2,7 +2,7 @@ export interface AssetItem {
   id: string;
   ticker: string;
   name: string;
-  type: 'FII' | 'FIAGRO' | 'FI_INFRA' | 'STOCK';
+  type: 'FII' | 'FIAGRO' | 'FI_INFRA';
   metadata?: Record<string, any>;
   taxpayerRegistrationNumber?: string | null;
   administratorName?: string | null;

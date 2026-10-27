@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$ BEGIN
-  CREATE TYPE public.asset_category AS ENUM ('FII', 'FIAGRO', 'FI_INFRA', 'STOCK');
+  CREATE TYPE public.asset_category AS ENUM ('FII', 'FIAGRO', 'FI_INFRA');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
@@ -23,7 +23,11 @@ DO $$ BEGIN
     'PRICE_VARIATION',
     'PRICE_TARGET',
     'DIVIDEND_ANNOUNCEMENT',
-    'DOCUMENT_DISCLOSURE',
+    'MATERIAL_FACT',
+    'MANAGEMENT_REPORT',
+    'MARKET_ANNOUNCEMENT',
+    'PUBLIC_OFFERING',
+    'FINANCIAL_STATEMENT',
     'MARKET_SUMMARY'
   );
 EXCEPTION
@@ -31,13 +35,13 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE public.user_role AS ENUM ('USER', 'PREMIUM', 'ADMINISTRATOR');
+  CREATE TYPE public.user_role AS ENUM ('USER', 'ADMINISTRATOR');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE public.treasury_indexer AS ENUM ('SELIC', 'IPCA', 'PREFIXADO');
+  CREATE TYPE public.treasury_indexer AS ENUM ('SELIC', 'IPCA', 'PREFIXADO', 'IGPM');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
