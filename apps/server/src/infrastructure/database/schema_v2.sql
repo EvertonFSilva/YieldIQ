@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY,
   username VARCHAR(50) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   phone VARCHAR(20),
@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_api_key ON public.users(api_key);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 
-CREATE TABLE IF NOT EXISTS assets (
+CREATE TABLE IF NOT EXISTS public.assets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   ticker VARCHAR(12) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
@@ -29,53 +29,10 @@ CREATE TABLE IF NOT EXISTS assets (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_assets_ticker ON assets(ticker);
-CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type);
+CREATE INDEX IF NOT EXISTS idx_assets_ticker ON public.assets(ticker);
+CREATE INDEX IF NOT EXISTS idx_assets_type ON public.assets(type);
 
-CREATE TABLE IF NOT EXISTS asset_quotes_daily (
-  id BIGSERIAL PRIMARY KEY,
-  asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  close_price NUMERIC(12,2) NOT NULL,
-  open_price NUMERIC(12,2),
-  high_price NUMERIC(12,2),
-  low_price NUMERIC(12,2),
-  volume BIGINT,
-  variation_percent NUMERIC(8,4),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT uq_asset_quote_daily UNIQUE(asset_id, date)
-);
-
-CREATE INDEX IF NOT EXISTS idx_quotes_asset_date ON asset_quotes_daily(asset_id, date DESC);
-
-CREATE TABLE IF NOT EXISTS asset_dividends (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  payment_type VARCHAR(50) DEFAULT 'Rendimento',
-  amount_per_share NUMERIC(12,6) NOT NULL,
-  record_date DATE NOT NULL,
-  payment_date DATE,
-  document_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT uq_asset_dividend UNIQUE(asset_id, record_date, amount_per_share)
-);
-
-CREATE INDEX IF NOT EXISTS idx_dividends_asset_date ON asset_dividends(asset_id, record_date DESC);
-
-CREATE TABLE IF NOT EXISTS asset_documents (
-  id VARCHAR(50) PRIMARY KEY,
-  asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  category VARCHAR(50) NOT NULL,
-  description TEXT NOT NULL,
-  reference_date DATE NOT NULL,
-  download_url TEXT NOT NULL,
-  published_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_documents_asset_published ON asset_documents(asset_id, published_at DESC);
-
-CREATE TABLE IF NOT EXISTS treasury_bonds (
+CREATE TABLE IF NOT EXISTS public.treasury_bonds (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(100) UNIQUE NOT NULL,
   indexer VARCHAR(20) NOT NULL,
@@ -87,67 +44,65 @@ CREATE TABLE IF NOT EXISTS treasury_bonds (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS alert_rules (
+CREATE INDEX IF NOT EXISTS idx_treasury_bonds_name ON public.treasury_bonds(name);
+
+CREATE TABLE IF NOT EXISTS public.alert_rules (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  recipient_type VARCHAR(10) NOT NULL CHECK (recipient_type IN ('USER', 'GROUP')),
-  recipient_destination VARCHAR(100) NOT NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  channel_type VARCHAR(10) NOT NULL CHECK (channel_type IN ('USER', 'GROUP')),
+  channel_destination VARCHAR(100) NOT NULL,
   target_type VARCHAR(10) NOT NULL CHECK (target_type IN ('ASSET', 'TREASURY')),
-  asset_id UUID REFERENCES assets(id) ON DELETE CASCADE,
-  treasury_bond_id UUID REFERENCES treasury_bonds(id) ON DELETE CASCADE,
-  variation_threshold_percent NUMERIC(5,2),
+  target_symbol VARCHAR(100) NOT NULL,
+  variation_step_percent NUMERIC(5,2),
   price_target_min NUMERIC(12,2),
   price_target_max NUMERIC(12,2),
-  target_dividend_yield NUMERIC(6,2),
   notify_price BOOLEAN DEFAULT true,
   notify_dividend BOOLEAN DEFAULT true,
-  notify_material_fact BOOLEAN DEFAULT true,
-  notify_report BOOLEAN DEFAULT true,
-  notify_public_offering BOOLEAN DEFAULT false,
-  notify_gordon_price BOOLEAN DEFAULT false,
-  is_enabled BOOLEAN DEFAULT true,
+  notify_document BOOLEAN DEFAULT true,
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_alert_rules_active ON alert_rules(is_enabled, target_type);
-CREATE INDEX IF NOT EXISTS idx_alert_rules_user ON alert_rules(user_id);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_active ON public.alert_rules(is_active, target_type);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_user ON public.alert_rules(user_id);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_target ON public.alert_rules(target_symbol);
 
-CREATE TABLE IF NOT EXISTS alert_history (
+CREATE TABLE IF NOT EXISTS public.alert_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  rule_id UUID REFERENCES alert_rules(id) ON DELETE SET NULL,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  recipient_destination VARCHAR(100) NOT NULL,
+  rule_id UUID REFERENCES public.alert_rules(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  channel_destination VARCHAR(100) NOT NULL,
+  target_symbol VARCHAR(100) NOT NULL,
   alert_type VARCHAR(30) NOT NULL,
   message TEXT NOT NULL,
   document_url TEXT,
-  status VARCHAR(20) DEFAULT 'SENT',
   sent_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_alert_history_user_sent ON alert_history(user_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_logs_user_sent ON public.alert_logs(user_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_logs_sent ON public.alert_logs(sent_at DESC);
 
-CREATE TABLE IF NOT EXISTS notifications (
+CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
-  read BOOLEAN DEFAULT false,
+  is_read BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, is_read);
 
-CREATE TABLE IF NOT EXISTS api_usage (
+CREATE TABLE IF NOT EXISTS public.api_telemetry (
   id BIGSERIAL PRIMARY KEY,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   endpoint VARCHAR(255) NOT NULL,
   method VARCHAR(10) NOT NULL,
   status_code INT,
   response_time_ms INT,
   ip_address VARCHAR(45),
-  details JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_api_usage_user_created ON api_usage(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_telemetry_user ON public.api_telemetry(user_id, created_at DESC);

@@ -6,8 +6,7 @@ import { LoggerUtils } from '../utils/Logger';
 interface ActiveAlertRuleRecord {
   id: string;
   userId?: string;
-  groupName?: string;
-  phoneNumber?: string;
+  destination: string;
   ticker: string;
   minimumTargetPrice?: number | null;
   maximumTargetPrice?: number | null;
@@ -44,52 +43,28 @@ export class PriceAlertWorker {
     try {
       const todayDateString = this.getSaoPauloDateString();
 
-      const [userRulesResult, groupRulesResult] = await Promise.all([
-        supabaseAdmin
-          .from('asset_alert_rules')
-          .select('id, user_id, alert_price_min, alert_price_max, alert_variation_pct, is_notify_price, is_alert_enabled, assets!inner(ticker), users!inner(phone, is_whatsapp_enabled)')
-          .eq('is_alert_enabled', true),
-        supabaseAdmin
-          .from('admin_group_alerts')
-          .select('id, group_name, alert_variation_pct, assets!inner(ticker)')
-      ]);
+      const { data: records, error } = await supabaseAdmin
+        .from('alert_rules')
+        .select('*')
+        .eq('is_active', true)
+        .eq('target_type', 'ASSET');
 
-      const activeRules: ActiveAlertRuleRecord[] = [];
-
-      for (const record of userRulesResult.data || []) {
-        const userRelationship = record.users as any;
-        const assetRelationship = record.assets as any;
-
-        if (
-          userRelationship?.is_whatsapp_enabled &&
-          userRelationship?.phone &&
-          assetRelationship?.ticker
-        ) {
-          activeRules.push({
-            id: `user:${record.id}`,
-            userId: record.user_id,
-            phoneNumber: userRelationship.phone,
-            ticker: assetRelationship.ticker,
-            minimumTargetPrice: record.alert_price_min,
-            maximumTargetPrice: record.alert_price_max,
-            variationPercentageThreshold: record.alert_variation_pct,
-            isPriceAlertEnabled: Boolean(record.is_notify_price)
-          });
-        }
+      if (error || !records || records.length === 0) {
+        return;
       }
 
-      for (const record of groupRulesResult.data || []) {
-        const assetRelationship = record.assets as any;
-        if (record.group_name && assetRelationship?.ticker) {
-          activeRules.push({
-            id: `group:${record.id}`,
-            groupName: record.group_name,
-            ticker: assetRelationship.ticker,
-            variationPercentageThreshold: record.alert_variation_pct,
-            isPriceAlertEnabled: true
-          });
-        }
-      }
+      const activeRules: ActiveAlertRuleRecord[] = records
+        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .map((r) => ({
+          id: r.id,
+          userId: r.user_id || undefined,
+          destination: r.channel_destination,
+          ticker: r.target_symbol,
+          minimumTargetPrice: r.price_target_min,
+          maximumTargetPrice: r.price_target_max,
+          variationPercentageThreshold: r.variation_step_percent,
+          isPriceAlertEnabled: Boolean(r.notify_price)
+        }));
 
       if (activeRules.length === 0) {
         return;
@@ -109,7 +84,7 @@ export class PriceAlertWorker {
           const matchingRules = activeRules.filter((rule) => rule.ticker === tickerSymbol);
 
           for (const rule of matchingRules) {
-            const destination = rule.phoneNumber || rule.groupName;
+            const destination = rule.destination;
             if (!destination) {
               continue;
             }
@@ -154,11 +129,14 @@ export class PriceAlertWorker {
                     rule.userId
                   );
 
-                  if (wasSentSuccessfully && rule.userId) {
+                  if (wasSentSuccessfully) {
                     supabaseAdmin
-                      .from('asset_alert_history')
+                      .from('alert_logs')
                       .insert({
+                        rule_id: rule.id,
                         user_id: rule.userId,
+                        channel_destination: destination,
+                        target_symbol: tickerSymbol,
                         alert_type: 'PRICE_VARIATION',
                         message: notificationMessage,
                         sent_at: new Date().toISOString()
@@ -195,11 +173,14 @@ export class PriceAlertWorker {
                   rule.userId
                 );
 
-                if (wasSentSuccessfully && rule.userId) {
+                if (wasSentSuccessfully) {
                   supabaseAdmin
-                    .from('asset_alert_history')
+                    .from('alert_logs')
                     .insert({
+                      rule_id: rule.id,
                       user_id: rule.userId,
+                      channel_destination: destination,
+                      target_symbol: tickerSymbol,
                       alert_type: 'PRICE_MIN',
                       message: minimumAlertMessage,
                       sent_at: new Date().toISOString()
@@ -227,11 +208,14 @@ export class PriceAlertWorker {
                   rule.userId
                 );
 
-                if (wasSentSuccessfully && rule.userId) {
+                if (wasSentSuccessfully) {
                   supabaseAdmin
-                    .from('asset_alert_history')
+                    .from('alert_logs')
                     .insert({
+                      rule_id: rule.id,
                       user_id: rule.userId,
+                      channel_destination: destination,
+                      target_symbol: tickerSymbol,
                       alert_type: 'PRICE_MAX',
                       message: maximumAlertMessage,
                       sent_at: new Date().toISOString()

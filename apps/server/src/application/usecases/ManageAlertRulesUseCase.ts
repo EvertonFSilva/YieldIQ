@@ -6,13 +6,10 @@ export interface UpsertAlertRuleInput {
   minimumTargetPrice?: number | null;
   maximumTargetPrice?: number | null;
   variationPercentageThreshold?: number | null;
-  targetDividendYield?: number | null;
   isPriceAlertEnabled?: boolean;
   isDividendAlertEnabled?: boolean;
   isMaterialFactAlertEnabled?: boolean;
   isReportAlertEnabled?: boolean;
-  isPublicOfferingAlertEnabled?: boolean;
-  isGordonPriceAlertEnabled?: boolean;
   isActive?: boolean;
 }
 
@@ -25,30 +22,27 @@ export interface TreasuryRuleInput {
 export class ManageAlertRulesUseCase {
   public async retrieveRules(userId: string): Promise<any[]> {
     const { data: records, error } = await supabaseAdmin
-      .from('asset_alert_rules')
-      .select('id, asset_id, alert_price_min, alert_price_max, is_notify_price, alert_variation_pct, is_notify_dividend, is_notify_material_fact, is_notify_report, is_notify_public_offering, is_alert_gordon_price, alert_target_yield, is_alert_enabled, created_at, assets!inner(ticker)')
-      .eq('user_id', userId);
+      .from('alert_rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('target_type', 'ASSET');
 
     if (error) {
       throw new ExternalServiceError('Failed to retrieve user alert rules');
     }
 
     const mappedRules = (records || []).map((record) => {
-      const assetRelationship = record.assets as any;
       return {
         id: record.id,
-        ticker: assetRelationship?.ticker,
-        alertPriceMin: record.alert_price_min,
-        alertPriceMax: record.alert_price_max,
-        alertPriceChangePct: record.alert_variation_pct,
-        notifyPrice: Boolean(record.is_notify_price),
-        notifyDividend: Boolean(record.is_notify_dividend),
-        notifyMaterialFact: Boolean(record.is_notify_material_fact),
-        notifyReport: Boolean(record.is_notify_report),
-        notifyPublicOffering: Boolean(record.is_notify_public_offering),
-        alertGordonPrice: Boolean(record.is_alert_gordon_price),
-        alertTargetYield: record.alert_target_yield,
-        enabled: Boolean(record.is_alert_enabled),
+        ticker: record.target_symbol,
+        alertPriceMin: record.price_target_min,
+        alertPriceMax: record.price_target_max,
+        alertPriceChangePct: record.variation_step_percent,
+        notifyPrice: Boolean(record.notify_price),
+        notifyDividend: Boolean(record.notify_dividend),
+        notifyMaterialFact: Boolean(record.notify_document),
+        notifyReport: Boolean(record.notify_document),
+        enabled: Boolean(record.is_active),
         createdAt: record.created_at
       };
     });
@@ -66,7 +60,7 @@ export class ManageAlertRulesUseCase {
 
     const { data: assetRecord } = await supabaseAdmin
       .from('assets')
-      .select('id')
+      .select('id, ticker')
       .eq('ticker', trimmedTicker)
       .maybeSingle();
 
@@ -79,30 +73,41 @@ export class ManageAlertRulesUseCase {
       throw new ValidationError('Minimum allowed price variation threshold is 0.10%');
     }
 
+    const { data: userProfile } = await supabaseAdmin
+      .from('users')
+      .select('phone, privilege, rule_limit')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const destinationPhone = userProfile?.phone || '';
+
     const { data: existingRuleRecord } = await supabaseAdmin
-      .from('asset_alert_rules')
+      .from('alert_rules')
       .select('id')
       .eq('user_id', userId)
-      .eq('asset_id', assetRecord.id)
+      .eq('target_symbol', trimmedTicker)
+      .eq('target_type', 'ASSET')
       .maybeSingle();
 
     const payload = {
-      alert_price_min: input.minimumTargetPrice ?? null,
-      alert_price_max: input.maximumTargetPrice ?? null,
-      alert_variation_pct: variationThreshold ?? null,
-      alert_target_yield: input.targetDividendYield ?? null,
-      is_notify_price: Boolean(input.isPriceAlertEnabled),
-      is_notify_dividend: Boolean(input.isDividendAlertEnabled),
-      is_notify_material_fact: Boolean(input.isMaterialFactAlertEnabled),
-      is_notify_report: Boolean(input.isReportAlertEnabled),
-      is_notify_public_offering: Boolean(input.isPublicOfferingAlertEnabled),
-      is_alert_gordon_price: Boolean(input.isGordonPriceAlertEnabled),
-      is_alert_enabled: input.isActive !== undefined ? Boolean(input.isActive) : true
+      user_id: userId,
+      channel_type: 'USER',
+      channel_destination: destinationPhone,
+      target_type: 'ASSET',
+      target_symbol: trimmedTicker,
+      price_target_min: input.minimumTargetPrice ?? null,
+      price_target_max: input.maximumTargetPrice ?? null,
+      variation_step_percent: variationThreshold ?? null,
+      notify_price: Boolean(input.isPriceAlertEnabled),
+      notify_dividend: Boolean(input.isDividendAlertEnabled),
+      notify_document: Boolean(input.isMaterialFactAlertEnabled || input.isReportAlertEnabled),
+      is_active: input.isActive !== undefined ? Boolean(input.isActive) : true,
+      updated_at: new Date().toISOString()
     };
 
     if (existingRuleRecord) {
       const { error: updateError } = await supabaseAdmin
-        .from('asset_alert_rules')
+        .from('alert_rules')
         .update(payload)
         .eq('id', existingRuleRecord.id);
 
@@ -113,26 +118,21 @@ export class ManageAlertRulesUseCase {
       return { id: existingRuleRecord.id, ticker: trimmedTicker };
     }
 
-    const [userRecordResult, countRecordResult] = await Promise.all([
-      supabaseAdmin.from('users').select('privilege, rule_limit').eq('id', userId).maybeSingle(),
-      supabaseAdmin.from('asset_alert_rules').select('id', { count: 'exact', head: true }).eq('user_id', userId)
-    ]);
+    const maximumAllowedRules = userProfile?.rule_limit ?? 20;
+    const { count: currentRuleCount } = await supabaseAdmin
+      .from('alert_rules')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
-    const userPrivilege = userRecordResult.data?.privilege || 'user';
-    const maximumAllowedRules = userRecordResult.data?.rule_limit ?? 20;
-    const currentRuleCount = countRecordResult.count || 0;
-
-    if (userPrivilege !== 'admin' && currentRuleCount >= maximumAllowedRules) {
+    if (userProfile?.privilege !== 'admin' && (currentRuleCount || 0) >= maximumAllowedRules) {
       throw new ForbiddenError(
         `Account alert limit of ${maximumAllowedRules} rules reached. Remove an existing rule to add a new one.`
       );
     }
 
     const { data: insertedRecord, error: insertionError } = await supabaseAdmin
-      .from('asset_alert_rules')
+      .from('alert_rules')
       .insert({
-        user_id: userId,
-        asset_id: assetRecord.id,
         ...payload,
         created_at: new Date().toISOString()
       })
@@ -148,7 +148,7 @@ export class ManageAlertRulesUseCase {
 
   public async deleteRule(userId: string, ruleId: string): Promise<void> {
     const { error } = await supabaseAdmin
-      .from('asset_alert_rules')
+      .from('alert_rules')
       .delete()
       .eq('id', ruleId)
       .eq('user_id', userId);
@@ -160,8 +160,8 @@ export class ManageAlertRulesUseCase {
 
   public async toggleRule(userId: string, ruleId: string, isActive: boolean): Promise<void> {
     const { error } = await supabaseAdmin
-      .from('asset_alert_rules')
-      .update({ is_alert_enabled: Boolean(isActive) })
+      .from('alert_rules')
+      .update({ is_active: Boolean(isActive), updated_at: new Date().toISOString() })
       .eq('id', ruleId)
       .eq('user_id', userId);
 
@@ -171,73 +171,44 @@ export class ManageAlertRulesUseCase {
   }
 
   public async retrieveHistory(userId: string, maximumItems: number = 30): Promise<any[]> {
-    const [assetAlertHistoryResult, treasuryAlertHistoryResult] = await Promise.all([
-      supabaseAdmin
-        .from('asset_alert_history')
-        .select('id, asset_id, alert_type, message, sent_at, assets!left(ticker)')
-        .eq('user_id', userId)
-        .order('sent_at', { ascending: false })
-        .limit(maximumItems),
-      supabaseAdmin
-        .from('treasury_alert_history')
-        .select('id, alert_type, message, sent_at')
-        .eq('user_id', userId)
-        .order('sent_at', { ascending: false, nullsFirst: false })
-        .limit(maximumItems)
-    ]);
+    const { data: records, error } = await supabaseAdmin
+      .from('alert_logs')
+      .select('id, target_symbol, alert_type, message, sent_at')
+      .eq('user_id', userId)
+      .order('sent_at', { ascending: false })
+      .limit(maximumItems);
 
-    const combinedHistory: any[] = [];
-
-    for (const record of assetAlertHistoryResult.data || []) {
-      const assetRelationship = record.assets as any;
-      combinedHistory.push({
-        id: record.id,
-        assetId: record.asset_id,
-        alertType: record.alert_type,
-        message: record.message,
-        sentAt: record.sent_at,
-        ticker: assetRelationship?.ticker || 'UNKNOWN'
-      });
+    if (error) {
+      throw new ExternalServiceError('Failed to retrieve alert history');
     }
 
-    for (const record of treasuryAlertHistoryResult.data || []) {
-      combinedHistory.push({
-        id: 'treasury:' + String(record.id),
-        assetId: null,
-        alertType: record.alert_type || 'TREASURY',
-        message: record.message || '',
-        sentAt: record.sent_at,
-        ticker: 'Tesouro Direto'
-      });
-    }
-
-    combinedHistory.sort((firstItem, secondItem) => {
-      const firstTimestamp = firstItem.sentAt || '9999';
-      const secondTimestamp = secondItem.sentAt || '9999';
-      return secondTimestamp.localeCompare(firstTimestamp);
-    });
-
-    return combinedHistory.slice(0, maximumItems);
+    return (records || []).map((record) => ({
+      id: record.id,
+      ticker: record.target_symbol,
+      alertType: record.alert_type,
+      message: record.message,
+      sentAt: record.sent_at
+    }));
   }
 
   public async retrieveTreasuryRules(userId: string): Promise<{ rules: any[]; bonds: string[] }> {
     const { data: records, error } = await supabaseAdmin
-      .from('treasury_alert_rules')
-      .select('id, treasury(name), is_alert_enabled, alert_variation_pct')
-      .eq('user_id', userId);
+      .from('alert_rules')
+      .select('id, target_symbol, is_active, variation_step_percent')
+      .eq('user_id', userId)
+      .eq('target_type', 'TREASURY');
 
     if (error) {
       throw new ExternalServiceError('Failed to retrieve Treasury alert rules');
     }
 
     const mappedRules = (records || [])
-      .map((record: any) => ({
+      .map((record) => ({
         id: String(record.id),
-        name: String(record.treasury?.name || '').trim(),
-        enabled: Boolean(record.is_alert_enabled),
-        variation: record.alert_variation_pct != null ? Number(record.alert_variation_pct) : null
+        name: record.target_symbol,
+        enabled: Boolean(record.is_active),
+        variation: record.variation_step_percent != null ? Number(record.variation_step_percent) : null
       }))
-      .filter((rule) => rule.name.length > 0)
       .sort((firstRule, secondRule) => firstRule.name.localeCompare(secondRule.name));
 
     const enabledBondNames = mappedRules.filter((rule) => rule.enabled).map((rule) => rule.name);
@@ -278,49 +249,39 @@ export class ManageAlertRulesUseCase {
       new Map(sanitizedRules.map((rule) => [rule.name, rule])).values()
     );
 
-    const targetNames = uniqueRulesByName.map((rule) => rule.name);
-    const { data: existingBonds } = await supabaseAdmin
-      .from('treasury')
-      .select('id, name')
-      .in('name', targetNames);
+    const { data: userProfile } = await supabaseAdmin
+      .from('users')
+      .select('phone')
+      .eq('id', userId)
+      .maybeSingle();
 
-    const bondIdentifierByName = new Map<string, string>();
-    for (const bondRecord of existingBonds || []) {
-      bondIdentifierByName.set(String(bondRecord.name), String(bondRecord.id));
-    }
+    const destinationPhone = userProfile?.phone || '';
 
-    const missingBondNames = uniqueRulesByName.filter((rule) => !bondIdentifierByName.has(rule.name));
-    if (missingBondNames.length > 0) {
-      const { data: insertedBonds } = await supabaseAdmin
-        .from('treasury')
-        .insert(missingBondNames.map((rule) => ({ name: rule.name })))
-        .select('id, name');
-
-      for (const insertedRecord of insertedBonds || []) {
-        bondIdentifierByName.set(String(insertedRecord.name), String(insertedRecord.id));
-      }
-    }
-
-    await supabaseAdmin.from('treasury_alert_rules').delete().eq('user_id', userId);
+    await supabaseAdmin
+      .from('alert_rules')
+      .delete()
+      .eq('user_id', userId)
+      .eq('target_type', 'TREASURY');
 
     if (uniqueRulesByName.length > 0) {
-      const insertionPayload = uniqueRulesByName
-        .map((rule) => ({
-          user_id: userId,
-          treasury_id: bondIdentifierByName.get(rule.name),
-          is_alert_enabled: rule.enabled,
-          alert_variation_pct: rule.variation
-        }))
-        .filter((rule) => Boolean(rule.treasury_id));
+      const insertionPayload = uniqueRulesByName.map((rule) => ({
+        user_id: userId,
+        channel_type: 'USER',
+        channel_destination: destinationPhone,
+        target_type: 'TREASURY',
+        target_symbol: rule.name,
+        variation_step_percent: rule.variation,
+        is_active: rule.enabled,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
 
-      if (insertionPayload.length > 0) {
-        const { error: insertError } = await supabaseAdmin
-          .from('treasury_alert_rules')
-          .insert(insertionPayload);
+      const { error: insertError } = await supabaseAdmin
+        .from('alert_rules')
+        .insert(insertionPayload);
 
-        if (insertError) {
-          throw new ExternalServiceError('Failed to save Treasury alert rules');
-        }
+      if (insertError) {
+        throw new ExternalServiceError('Failed to save Treasury alert rules');
       }
     }
 

@@ -5,8 +5,8 @@ import { LoggerUtils } from '../utils/Logger';
 
 interface ActiveTreasuryRule {
   id: string;
-  userId: string;
-  phoneNumber: string;
+  userId?: string;
+  destination: string;
   bondName: string;
   variationPercentageThreshold: number | null;
 }
@@ -38,34 +38,24 @@ export class TreasuryAlertWorker {
 
     try {
       const { data: records, error } = await supabaseAdmin
-        .from('treasury_alert_rules')
-        .select('id, user_id, alert_variation_pct, is_alert_enabled, treasury!inner(name), users!inner(phone, is_whatsapp_enabled)')
-        .eq('is_alert_enabled', true);
+        .from('alert_rules')
+        .select('*')
+        .eq('is_active', true)
+        .eq('target_type', 'TREASURY');
 
       if (error || !records || records.length === 0) {
         return;
       }
 
-      const activeRules: ActiveTreasuryRule[] = [];
-
-      for (const record of records) {
-        const userRelationship = record.users as any;
-        const treasuryRelationship = record.treasury as any;
-
-        if (
-          userRelationship?.is_whatsapp_enabled &&
-          userRelationship?.phone &&
-          treasuryRelationship?.name
-        ) {
-          activeRules.push({
-            id: String(record.id),
-            userId: record.user_id,
-            phoneNumber: userRelationship.phone,
-            bondName: treasuryRelationship.name.trim(),
-            variationPercentageThreshold: record.alert_variation_pct
-          });
-        }
-      }
+      const activeRules: ActiveTreasuryRule[] = records
+        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .map((r) => ({
+          id: String(r.id),
+          userId: r.user_id || undefined,
+          destination: r.channel_destination,
+          bondName: r.target_symbol.trim(),
+          variationPercentageThreshold: r.variation_step_percent
+        }));
 
       if (activeRules.length === 0) {
         return;
@@ -119,16 +109,19 @@ export class TreasuryAlertWorker {
                   `⏱️ Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
 
                 const wasSent = await whatsAppService.sendMessage(
-                  rule.phoneNumber,
+                  rule.destination,
                   treasuryMessage,
                   rule.userId
                 );
 
                 if (wasSent) {
                   supabaseAdmin
-                    .from('treasury_alert_history')
+                    .from('alert_logs')
                     .insert({
+                      rule_id: rule.id,
                       user_id: rule.userId,
+                      channel_destination: rule.destination,
+                      target_symbol: bondItem.bondName,
                       alert_type: 'TREASURY_VARIATION',
                       message: treasuryMessage,
                       sent_at: new Date().toISOString()

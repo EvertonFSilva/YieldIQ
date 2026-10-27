@@ -85,8 +85,9 @@ export class AdminController {
     try {
       this.ensureAdminPrivilege(request);
       const { data: records, error } = await supabaseAdmin
-        .from('admin_group_alerts')
-        .select('*, assets(ticker)')
+        .from('alert_rules')
+        .select('*')
+        .eq('channel_type', 'GROUP')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -95,7 +96,17 @@ export class AdminController {
 
       response.json({
         success: true,
-        data: records || []
+        data: (records || []).map((r) => ({
+          id: r.id,
+          group_name: r.channel_destination,
+          ticker: r.target_symbol,
+          alert_variation_pct: r.variation_step_percent,
+          is_notify_dividend: r.notify_dividend,
+          is_notify_material_fact: r.notify_document,
+          is_notify_report: r.notify_document,
+          is_active: r.is_active,
+          created_at: r.created_at
+        }))
       });
     } catch (error) {
       nextStep(error);
@@ -115,18 +126,20 @@ export class AdminController {
         is_notify_dividend,
         alert_variation_pct,
         is_notify_material_fact,
-        is_notify_report,
-        is_notify_public_offering
+        is_notify_report
       } = request.body;
 
       if (!ticker || !group_name) {
         throw new ValidationError('Ticker and group_name are required fields');
       }
 
+      const cleanTicker = ticker.toUpperCase().trim();
+      const cleanGroup = group_name.trim();
+
       const { data: assetData } = await supabaseAdmin
         .from('assets')
         .select('id')
-        .eq('ticker', ticker.toUpperCase().trim())
+        .eq('ticker', cleanTicker)
         .maybeSingle();
 
       if (!assetData) {
@@ -134,10 +147,11 @@ export class AdminController {
       }
 
       const { data: existingRecord } = await supabaseAdmin
-        .from('admin_group_alerts')
+        .from('alert_rules')
         .select('id')
-        .eq('asset_id', assetData.id)
-        .eq('group_name', group_name.trim())
+        .eq('channel_type', 'GROUP')
+        .eq('channel_destination', cleanGroup)
+        .eq('target_symbol', cleanTicker)
         .maybeSingle();
 
       if (existingRecord) {
@@ -148,15 +162,18 @@ export class AdminController {
         alert_variation_pct != null ? parseFloat(String(alert_variation_pct).replace(',', '.')) : null;
 
       const { data: insertedRecord, error: insertError } = await supabaseAdmin
-        .from('admin_group_alerts')
+        .from('alert_rules')
         .insert({
-          asset_id: assetData.id,
-          group_name: group_name.trim(),
-          is_notify_dividend: Boolean(is_notify_dividend),
-          alert_variation_pct: variationNumber,
-          is_notify_material_fact: Boolean(is_notify_material_fact),
-          is_notify_report: Boolean(is_notify_report),
-          is_notify_public_offering: Boolean(is_notify_public_offering)
+          channel_type: 'GROUP',
+          channel_destination: cleanGroup,
+          target_type: 'ASSET',
+          target_symbol: cleanTicker,
+          variation_step_percent: variationNumber,
+          notify_dividend: Boolean(is_notify_dividend),
+          notify_document: Boolean(is_notify_material_fact || is_notify_report),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -184,9 +201,10 @@ export class AdminController {
       const ruleIdentifier = request.params.id;
 
       const { error } = await supabaseAdmin
-        .from('admin_group_alerts')
+        .from('alert_rules')
         .delete()
-        .eq('id', ruleIdentifier);
+        .eq('id', ruleIdentifier)
+        .eq('channel_type', 'GROUP');
 
       if (error) {
         throw error;

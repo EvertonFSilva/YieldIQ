@@ -1,5 +1,4 @@
 import { ICacheService, StaleCacheResult } from '../../domain/ports/ICacheService';
-import { supabaseAdmin } from '../database/SupabaseClient';
 
 interface CacheStorageRecord<T> {
   value: T;
@@ -49,37 +48,11 @@ export class RobustCacheService implements ICacheService {
       return storedRecord.value as T;
     }
 
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('cache')
-        .select('value, expires_at')
-        .eq('key', cacheKey)
-        .maybeSingle();
-
-      if (error || !data || !data.value) {
-        return null;
-      }
-
-      const databaseExpirationTimestamp = data.expires_at
-        ? new Date(data.expires_at).getTime()
-        : Infinity;
-
-      if (databaseExpirationTimestamp <= currentTimestamp) {
-        return null;
-      }
-
-      const restoredRecord: CacheStorageRecord<T> = {
-        value: data.value,
-        expirationTimestamp: databaseExpirationTimestamp
-      };
-
-      this.enforceCapacityLimit();
-      this.memoryStorage.set(cacheKey, restoredRecord);
-
-      return data.value as T;
-    } catch {
-      return null;
+    if (storedRecord) {
+      this.memoryStorage.delete(cacheKey);
     }
+
+    return null;
   }
 
   public async set<T>(
@@ -92,23 +65,11 @@ export class RobustCacheService implements ICacheService {
 
     this.enforceCapacityLimit();
     this.memoryStorage.set(cacheKey, { value: cacheValue, expirationTimestamp });
-
-    const isoExpirationDate = new Date(expirationTimestamp).toISOString();
-
-    supabaseAdmin
-      .from('cache')
-      .upsert({ key: cacheKey, value: cacheValue, expires_at: isoExpirationDate }, { onConflict: 'key' })
-      .then(undefined, () => {});
   }
 
   public async delete(cacheKey: string): Promise<void> {
     this.memoryStorage.delete(cacheKey);
     this.inFlightComputations.delete(cacheKey);
-
-    try {
-      await supabaseAdmin.from('cache').delete().eq('key', cacheKey);
-    } catch {
-    }
   }
 
   public async clear(searchPattern?: string): Promise<void> {
@@ -118,17 +79,9 @@ export class RobustCacheService implements ICacheService {
           this.memoryStorage.delete(storageKey);
         }
       }
-      try {
-        await supabaseAdmin.from('cache').delete().like('key', `%${searchPattern}%`);
-      } catch {
-      }
     } else {
       this.memoryStorage.clear();
       this.inFlightComputations.clear();
-      try {
-        await supabaseAdmin.from('cache').delete().neq('key', '');
-      } catch {
-      }
     }
   }
 
@@ -144,36 +97,7 @@ export class RobustCacheService implements ICacheService {
       };
     }
 
-    try {
-      const { data } = await supabaseAdmin
-        .from('cache')
-        .select('value, expires_at')
-        .eq('key', cacheKey)
-        .maybeSingle();
-
-      if (!data || !data.value) {
-        return null;
-      }
-
-      const databaseExpirationTimestamp = data.expires_at
-        ? new Date(data.expires_at).getTime()
-        : 0;
-
-      const restoredRecord: CacheStorageRecord<T> = {
-        value: data.value,
-        expirationTimestamp: databaseExpirationTimestamp
-      };
-
-      this.enforceCapacityLimit();
-      this.memoryStorage.set(cacheKey, restoredRecord);
-
-      return {
-        value: data.value as T,
-        isStale: databaseExpirationTimestamp <= currentTimestamp
-      };
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   public async getOrCompute<T>(

@@ -36,8 +36,11 @@ export class MarketCloseSummaryWorker {
 
     try {
       const { data: groupRecords } = await supabaseAdmin
-        .from('admin_group_alerts')
-        .select('group_name, assets!inner(ticker)');
+        .from('alert_rules')
+        .select('channel_destination, target_symbol')
+        .eq('is_active', true)
+        .eq('channel_type', 'GROUP')
+        .eq('target_type', 'ASSET');
 
       if (!groupRecords || groupRecords.length === 0) {
         return;
@@ -45,9 +48,8 @@ export class MarketCloseSummaryWorker {
 
       const groupsMap = new Map<string, Set<string>>();
       for (const record of groupRecords) {
-        const groupName = record.group_name;
-        const assetRelationship = record.assets as any;
-        const ticker = assetRelationship?.ticker;
+        const groupName = record.channel_destination;
+        const ticker = record.target_symbol;
 
         if (groupName && ticker) {
           if (!groupsMap.has(groupName)) {

@@ -6,8 +6,7 @@ import { LoggerUtils } from '../utils/Logger';
 interface ActiveDividendRule {
   id: string;
   userId?: string;
-  phoneNumber?: string;
-  groupName?: string;
+  destination: string;
   ticker: string;
 }
 
@@ -37,48 +36,25 @@ export class DividendAlertWorker {
     this.isExecutionInProgress = true;
 
     try {
-      const [userRulesResult, groupRulesResult] = await Promise.all([
-        supabaseAdmin
-          .from('asset_alert_rules')
-          .select('id, user_id, is_notify_dividend, is_alert_enabled, assets!inner(ticker), users!inner(phone, is_whatsapp_enabled)')
-          .eq('is_alert_enabled', true)
-          .eq('is_notify_dividend', true),
-        supabaseAdmin
-          .from('admin_group_alerts')
-          .select('id, group_name, is_notify_dividend, assets!inner(ticker)')
-          .eq('is_notify_dividend', true)
-      ]);
+      const { data: records, error } = await supabaseAdmin
+        .from('alert_rules')
+        .select('*')
+        .eq('is_active', true)
+        .eq('notify_dividend', true)
+        .eq('target_type', 'ASSET');
 
-      const activeRules: ActiveDividendRule[] = [];
-
-      for (const record of userRulesResult.data || []) {
-        const userRelationship = record.users as any;
-        const assetRelationship = record.assets as any;
-
-        if (
-          userRelationship?.is_whatsapp_enabled &&
-          userRelationship?.phone &&
-          assetRelationship?.ticker
-        ) {
-          activeRules.push({
-            id: `user:${record.id}`,
-            userId: record.user_id,
-            phoneNumber: userRelationship.phone,
-            ticker: assetRelationship.ticker
-          });
-        }
+      if (error || !records || records.length === 0) {
+        return;
       }
 
-      for (const record of groupRulesResult.data || []) {
-        const assetRelationship = record.assets as any;
-        if (record.group_name && assetRelationship?.ticker) {
-          activeRules.push({
-            id: `group:${record.id}`,
-            groupName: record.group_name,
-            ticker: assetRelationship.ticker
-          });
-        }
-      }
+      const activeRules: ActiveDividendRule[] = records
+        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .map((r) => ({
+          id: r.id,
+          userId: r.user_id || undefined,
+          destination: r.channel_destination,
+          ticker: r.target_symbol
+        }));
 
       if (activeRules.length === 0) {
         return;
@@ -117,18 +93,21 @@ export class DividendAlertWorker {
             const matchingRules = activeRules.filter((rule) => rule.ticker === tickerSymbol);
 
             for (const rule of matchingRules) {
-              const destination = rule.phoneNumber || rule.groupName;
+              const destination = rule.destination;
               if (!destination) {
                 continue;
               }
 
               const wasSent = await whatsAppService.sendMessage(destination, dividendMessage, rule.userId);
 
-              if (wasSent && rule.userId) {
+              if (wasSent) {
                 supabaseAdmin
-                  .from('asset_alert_history')
+                  .from('alert_logs')
                   .insert({
+                    rule_id: rule.id,
                     user_id: rule.userId,
+                    channel_destination: destination,
+                    target_symbol: tickerSymbol,
                     alert_type: 'DIVIDEND',
                     message: dividendMessage,
                     sent_at: new Date().toISOString()

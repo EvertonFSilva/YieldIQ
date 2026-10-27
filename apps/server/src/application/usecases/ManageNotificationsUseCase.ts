@@ -12,7 +12,7 @@ export class ManageNotificationsUseCase {
     const [notificationsResult, unreadCountResult] = await Promise.all([
       supabaseAdmin
         .from('notifications')
-        .select('id, title, message, created_at, read')
+        .select('id, title, message, created_at, is_read')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .range(calculationOffset, calculationOffset + itemsPerPage - 1),
@@ -20,7 +20,7 @@ export class ManageNotificationsUseCase {
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('read', false)
+        .eq('is_read', false)
     ]);
 
     if (notificationsResult.error) {
@@ -38,7 +38,7 @@ export class ManageNotificationsUseCase {
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('read', false);
+      .eq('is_read', false);
 
     if (error) {
       throw new ExternalServiceError('Failed to retrieve unread notification count');
@@ -50,9 +50,9 @@ export class ManageNotificationsUseCase {
   public async markAllAsRead(userId: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('notifications')
-      .update({ read: true })
+      .update({ is_read: true })
       .eq('user_id', userId)
-      .eq('read', false);
+      .eq('is_read', false);
 
     if (error) {
       throw new ExternalServiceError('Failed to mark all notifications as read');
@@ -62,7 +62,7 @@ export class ManageNotificationsUseCase {
   public async markAsRead(userId: string, notificationId: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('notifications')
-      .update({ read: true })
+      .update({ is_read: true })
       .eq('user_id', userId)
       .eq('id', notificationId);
 
@@ -89,7 +89,7 @@ export class ManageNotificationsUseCase {
       user_id: user.id,
       title: title.trim(),
       message: message ? message.trim() : '',
-      read: false,
+      is_read: false,
       created_at: currentTimestamp
     }));
 

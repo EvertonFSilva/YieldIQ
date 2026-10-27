@@ -26,7 +26,7 @@ export class RetrieveTelemetryUsageUseCase {
     }
 
     const { data: usageRecords } = await supabaseAdmin
-      .from('usage')
+      .from('api_telemetry')
       .select('endpoint, method')
       .eq('user_id', userId)
       .gte('created_at', calculatedSinceDate.toISOString());

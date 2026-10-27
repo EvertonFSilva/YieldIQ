@@ -6,12 +6,8 @@ import { LoggerUtils } from '../utils/Logger';
 interface ActiveDocumentRule {
   id: string;
   userId?: string;
-  phoneNumber?: string;
-  groupName?: string;
+  destination: string;
   ticker: string;
-  isMaterialFactAlertEnabled?: boolean;
-  isReportAlertEnabled?: boolean;
-  isPublicOfferingAlertEnabled?: boolean;
 }
 
 export class DocumentAlertWorker {
@@ -40,57 +36,25 @@ export class DocumentAlertWorker {
     this.isExecutionInProgress = true;
 
     try {
-      const [userRulesResult, groupRulesResult] = await Promise.all([
-        supabaseAdmin
-          .from('asset_alert_rules')
-          .select('id, user_id, is_notify_material_fact, is_notify_report, is_notify_public_offering, is_alert_enabled, assets!inner(ticker), users!inner(phone, is_whatsapp_enabled)')
-          .eq('is_alert_enabled', true),
-        supabaseAdmin
-          .from('admin_group_alerts')
-          .select('id, group_name, is_notify_material_fact, is_notify_report, is_notify_public_offering, assets!inner(ticker)')
-      ]);
+      const { data: records, error } = await supabaseAdmin
+        .from('alert_rules')
+        .select('*')
+        .eq('is_active', true)
+        .eq('notify_document', true)
+        .eq('target_type', 'ASSET');
 
-      const activeRules: ActiveDocumentRule[] = [];
-
-      for (const record of userRulesResult.data || []) {
-        const userRelationship = record.users as any;
-        const assetRelationship = record.assets as any;
-
-        if (
-          userRelationship?.is_whatsapp_enabled &&
-          userRelationship?.phone &&
-          assetRelationship?.ticker &&
-          (record.is_notify_material_fact || record.is_notify_report || record.is_notify_public_offering)
-        ) {
-          activeRules.push({
-            id: `user:${record.id}`,
-            userId: record.user_id,
-            phoneNumber: userRelationship.phone,
-            ticker: assetRelationship.ticker,
-            isMaterialFactAlertEnabled: Boolean(record.is_notify_material_fact),
-            isReportAlertEnabled: Boolean(record.is_notify_report),
-            isPublicOfferingAlertEnabled: Boolean(record.is_notify_public_offering)
-          });
-        }
+      if (error || !records || records.length === 0) {
+        return;
       }
 
-      for (const record of groupRulesResult.data || []) {
-        const assetRelationship = record.assets as any;
-        if (
-          record.group_name &&
-          assetRelationship?.ticker &&
-          (record.is_notify_material_fact || record.is_notify_report || record.is_notify_public_offering)
-        ) {
-          activeRules.push({
-            id: `group:${record.id}`,
-            groupName: record.group_name,
-            ticker: assetRelationship.ticker,
-            isMaterialFactAlertEnabled: Boolean(record.is_notify_material_fact),
-            isReportAlertEnabled: Boolean(record.is_notify_report),
-            isPublicOfferingAlertEnabled: Boolean(record.is_notify_public_offering)
-          });
-        }
-      }
+      const activeRules: ActiveDocumentRule[] = records
+        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .map((r) => ({
+          id: r.id,
+          userId: r.user_id || undefined,
+          destination: r.channel_destination,
+          ticker: r.target_symbol
+        }));
 
       if (activeRules.length === 0) {
         return;
@@ -133,28 +97,12 @@ export class DocumentAlertWorker {
               documentCategoryLower.includes('relat') ||
               documentDescriptionLower.includes('relatório');
 
-            const isOffering =
-              documentCategoryLower.includes('oferta') ||
-              documentDescriptionLower.includes('subscrição');
-
-            const matchingRules = activeRules.filter((rule) => {
-              if (rule.ticker !== tickerSymbol) return false;
-              if (isMaterialFact && rule.isMaterialFactAlertEnabled) return true;
-              if (isReport && rule.isReportAlertEnabled) return true;
-              if (isOffering && rule.isPublicOfferingAlertEnabled) return true;
-              return false;
-            });
-
-            if (matchingRules.length === 0) {
-              continue;
-            }
-
             const headerIcon = isMaterialFact ? '🚨' : isReport ? '📑' : '📢';
             const categoryTitle = isMaterialFact
               ? 'FATO RELEVANTE'
               : isReport
               ? 'RELATÓRIO GERENCIAL'
-              : 'OFERTA PÚBLICA / SUBSCRIÇÃO';
+              : 'COMUNICADO OFICIAL';
 
             const documentMessage =
               `${headerIcon} *NOVO DOCUMENTO PUBLICADO - ${tickerSymbol}*\n\n` +
@@ -163,8 +111,10 @@ export class DocumentAlertWorker {
               `📅 Data de Referência: ${documentItem.referenceDate}\n` +
               `🔗 Visualizar: ${documentItem.documentDownloadUrl}`;
 
+            const matchingRules = activeRules.filter((rule) => rule.ticker === tickerSymbol);
+
             for (const rule of matchingRules) {
-              const destination = rule.phoneNumber || rule.groupName;
+              const destination = rule.destination;
               if (!destination) {
                 continue;
               }
@@ -184,13 +134,17 @@ export class DocumentAlertWorker {
                 wasSent = await whatsAppService.sendMessage(destination, documentMessage, rule.userId);
               }
 
-              if (wasSent && rule.userId) {
+              if (wasSent) {
                 supabaseAdmin
-                  .from('asset_alert_history')
+                  .from('alert_logs')
                   .insert({
+                    rule_id: rule.id,
                     user_id: rule.userId,
-                    alert_type: isMaterialFact ? 'MATERIAL_FACT' : isReport ? 'REPORT' : 'PUBLIC_OFFERING',
+                    channel_destination: destination,
+                    target_symbol: tickerSymbol,
+                    alert_type: isMaterialFact ? 'MATERIAL_FACT' : isReport ? 'REPORT' : 'OFFERING',
                     message: documentMessage,
+                    document_url: documentItem.documentDownloadUrl,
                     sent_at: new Date().toISOString()
                   })
                   .then(undefined, () => {});

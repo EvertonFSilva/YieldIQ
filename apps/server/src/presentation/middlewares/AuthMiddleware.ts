@@ -45,7 +45,7 @@ export async function authenticateRequest(
 
         const targetEndpoint = request.baseUrl + request.path;
         supabaseAdmin
-          .from('usage')
+          .from('api_telemetry')
           .insert({
             user_id: userRecord.id,
             endpoint: targetEndpoint,
