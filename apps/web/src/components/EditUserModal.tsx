@@ -72,7 +72,7 @@ export const EditUserModal: React.FC<EditUserModalProperties> = ({
       >
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-purple-500/10 p-2 text-purple-400">
+            <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-400">
               <UserCheck className="h-5 w-5" />
             </div>
             <div>
@@ -103,7 +103,7 @@ export const EditUserModal: React.FC<EditUserModalProperties> = ({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="ex: investidor_pro"
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-purple-500 outline-none"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 outline-none transition"
             />
           </div>
 
@@ -118,7 +118,7 @@ export const EditUserModal: React.FC<EditUserModalProperties> = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu.email@exemplo.com"
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-purple-500 outline-none"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 outline-none transition"
             />
           </div>
 
@@ -133,7 +133,7 @@ export const EditUserModal: React.FC<EditUserModalProperties> = ({
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="Ex: 11999998888"
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-purple-500 outline-none"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 outline-none transition"
             />
           </div>
 
@@ -165,16 +165,24 @@ export const EditUserModal: React.FC<EditUserModalProperties> = ({
                 value={alertQuota}
                 onChange={(e) => setAlertQuota(Number(e.target.value))}
                 placeholder="Ex: 50"
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-purple-500 outline-none"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 outline-none transition"
               />
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
             <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl bg-purple-600 hover:bg-purple-500 px-5 py-2.5 text-xs font-bold text-white transition disabled:opacity-50 shadow-lg shadow-purple-600/20"
+              className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-xs font-bold text-slate-950 transition disabled:opacity-50 shadow-lg shadow-emerald-500/20 active:scale-95"
             >
               {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
             </button>

@@ -13,6 +13,7 @@ import { AlertRuleItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { CustomSwitch } from './common/CustomSwitch';
+import { AssetAutocompleteInput } from './common/AssetAutocompleteInput';
 
 export const AlertRulesView: React.FC = () => {
   const { currentUser, openAuthModal } = useAuth();
@@ -212,14 +213,12 @@ export const AlertRulesView: React.FC = () => {
         <form onSubmit={handleCreateRule} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-400 mb-1">Código do Ativo (B3) *</label>
-            <input
-              type="text"
-              required
-              minLength={4}
-              maxLength={10}
+            <AssetAutocompleteInput
               value={assetInput}
-              onChange={(e) => setAssetInput(e.target.value)}
+              onChange={setAssetInput}
+              onSelect={(asset) => setAssetInput(asset.ticker)}
               placeholder="Ex: MXRF11, HGLG11"
+              required
               className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-white uppercase placeholder-slate-600 outline-none focus:border-emerald-500/50"
             />
           </div>

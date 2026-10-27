@@ -19,6 +19,7 @@ import { useToast } from '../context/ToastContext';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EditUserModal } from './EditUserModal';
 import { CustomSwitch } from './common/CustomSwitch';
+import { AssetAutocompleteInput } from './common/AssetAutocompleteInput';
 
 export const AdminView: React.FC = () => {
   const { currentUser } = useAuth();
@@ -421,12 +422,11 @@ export const AdminView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Código do Ativo</label>
-                <input
-                  type="text"
-                  placeholder="ex: MXRF11"
+                <AssetAutocompleteInput
                   value={newAlertTicker}
-                  onChange={(e) => setNewAlertTicker(e.target.value)}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-white uppercase font-mono focus:border-emerald-500 focus:outline-none"
+                  onChange={setNewAlertTicker}
+                  onSelect={(asset) => setNewAlertTicker(asset.ticker)}
+                  placeholder="Ex: HGLG11, MXRF11"
                   required
                 />
               </div>

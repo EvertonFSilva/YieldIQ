@@ -8,10 +8,16 @@ import {
   BarChart3,
   DollarSign,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Building
 } from 'lucide-react';
-import { assetService } from '../services/apiClient';
+import { assetService, treasuryService } from '../services/apiClient';
 import { AssetSummaryData, AssetItem, DocumentItem } from '../types';
+import {
+  isTijoloFund,
+  calculateBazinForTijolo,
+  getAssetClassificationLabel
+} from '../utils/assetValuation';
 
 interface AssetDetailModalProperties {
   asset: AssetItem | null;
@@ -28,6 +34,21 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [tesouroIpcaRate, setTesouroIpcaRate] = useState<number>(6.05);
+
+  useEffect(() => {
+    treasuryService
+      .retrieveBonds()
+      .then((bonds) => {
+        const ipcaBond = bonds.find(
+          (b) => b.bondName.toUpperCase().includes('IPCA+') && b.bondName.includes('2035')
+        ) || bonds.find((b) => b.bondName.toUpperCase().includes('IPCA+'));
+        if (ipcaBond && ipcaBond.profitabilityRate > 0) {
+          setTesouroIpcaRate(ipcaBond.profitabilityRate);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchSummary = (): void => {
     if (!asset) return;
@@ -108,12 +129,15 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
       >
         <div className="flex items-start justify-between border-b border-slate-800 pb-5">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="rounded-xl bg-emerald-500/10 px-3.5 py-1.5 font-mono text-2xl font-bold text-emerald-400 border border-emerald-500/20">
                 {asset.ticker}
               </span>
               <span className="rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-300 uppercase tracking-wider">
                 {asset.type.replace('_', '-')}
+              </span>
+              <span className={`rounded-lg px-2.5 py-1 text-xs font-bold border ${getAssetClassificationLabel(asset).badgeStyle}`}>
+                {getAssetClassificationLabel(asset).label}
               </span>
               <span className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 text-xs text-slate-400">
                 {asset.metadata?.segment || 'Geral'}
@@ -198,63 +222,99 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
               <span className="text-[11px] text-slate-500">Fonte Oficial: B3 &bull; CVM</span>
             </div>
 
-            {activeTab === 'overview' && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
-                    <span className="text-[11px] font-medium text-slate-400">Preço Atual</span>
-                    <p className="mt-1 text-2xl font-extrabold text-white">
-                      R$ {summaryData.priceQuote?.currentPrice ? summaryData.priceQuote.currentPrice.toFixed(2) : '0,00'}
-                    </p>
-                    <div className="mt-1 text-[11px] flex items-center gap-1 font-semibold">
-                      <span
-                        className={
-                          (summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0
-                            ? 'text-emerald-400'
-                            : 'text-rose-400'
-                        }
-                      >
-                        {(summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0 ? '+' : ''}
-                        {(summaryData.priceQuote?.dailyVariationPercentage || 0).toFixed(2)}%
-                      </span>
-                      <span className="text-slate-500">hoje</span>
-                    </div>
-                  </div>
+            {activeTab === 'overview' && (() => {
+              const isTijolo = isTijoloFund(asset);
+              const tijoloValuation = calculateBazinForTijolo(summaryData.annualDividendSum || 0, tesouroIpcaRate, 1.5, 0.0);
+              const activeBazinCeiling = isTijolo ? tijoloValuation.ceilingPrice : (summaryData.bazinCeilingPriceSixPercent || 0);
+              const currentPrice = summaryData.priceQuote?.currentPrice || 0;
+              const activeMargin = currentPrice > 0 && activeBazinCeiling > 0 ? (((activeBazinCeiling / currentPrice) - 1) * 100) : null;
 
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
-                    <span className="text-[11px] font-medium text-slate-400">Dividend Yield (12M)</span>
-                    <p className="mt-1 text-2xl font-extrabold text-emerald-400">
-                      {summaryData.trailingDividendYieldPercentage ? summaryData.trailingDividendYieldPercentage.toFixed(2) : '0,00'}%
-                    </p>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                      Soma 12M: R$ {summaryData.annualDividendSum ? summaryData.annualDividendSum.toFixed(2) : '0,00'}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
-                    <span className="text-[11px] font-medium text-slate-400">Preço Teto Bazin (6%)</span>
-                    <p className="mt-1 text-2xl font-extrabold text-teal-400">
-                      R$ {summaryData.bazinCeilingPriceSixPercent ? summaryData.bazinCeilingPriceSixPercent.toFixed(2) : '0,00'}
-                    </p>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                      {summaryData.priceQuote?.currentPrice && summaryData.bazinCeilingPriceSixPercent > 0 ? (
-                        <span>
-                          Margem: {(((summaryData.bazinCeilingPriceSixPercent / summaryData.priceQuote.currentPrice) - 1) * 100).toFixed(1)}%
+              return (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
+                      <span className="text-[11px] font-medium text-slate-400">Preço Atual</span>
+                      <p className="mt-1 text-2xl font-extrabold text-white">
+                        R$ {summaryData.priceQuote?.currentPrice ? summaryData.priceQuote.currentPrice.toFixed(2) : '0,00'}
+                      </p>
+                      <div className="mt-1 text-[11px] flex items-center gap-1 font-semibold">
+                        <span
+                          className={
+                            (summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                          }
+                        >
+                          {(summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0 ? '+' : ''}
+                          {(summaryData.priceQuote?.dailyVariationPercentage || 0).toFixed(2)}%
                         </span>
-                      ) : (
-                        <span>Margem: Sob Apuração</span>
-                      )}
+                        <span className="text-slate-500">hoje</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
+                      <span className="text-[11px] font-medium text-slate-400">Dividend Yield (12M)</span>
+                      <p className="mt-1 text-2xl font-extrabold text-emerald-400">
+                        {summaryData.trailingDividendYieldPercentage ? summaryData.trailingDividendYieldPercentage.toFixed(2) : '0,00'}%
+                      </p>
+                      <div className="mt-1 text-[11px] text-slate-500">
+                        Soma 12M: R$ {summaryData.annualDividendSum ? summaryData.annualDividendSum.toFixed(2) : '0,00'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-slate-400">
+                          {isTijolo ? 'Preço Teto (IPCA+)' : 'Preço Teto Bazin (6%)'}
+                        </span>
+                        {isTijolo && (
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            Tijolo
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-2xl font-extrabold text-teal-400">
+                        R$ {activeBazinCeiling > 0 ? activeBazinCeiling.toFixed(2) : '0,00'}
+                      </p>
+                      <div className="mt-1 text-[11px]">
+                        {activeMargin !== null ? (
+                          <span className={activeMargin >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                            Margem: {activeMargin >= 0 ? '+' : ''}{activeMargin.toFixed(1)}% {activeMargin >= 0 ? '(Oportunidade)' : '(Aguardar)'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">Margem: Sob Apuração</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
+                      <span className="text-[11px] font-medium text-slate-400">Preço Teto Gordon</span>
+                      <p className="mt-1 text-2xl font-extrabold text-cyan-400">
+                        R$ {summaryData.gordonCeilingPrice ? summaryData.gordonCeilingPrice.toFixed(2) : '0,00'}
+                      </p>
+                      <div className="mt-1 text-[11px] text-slate-500">Modelo DDM descontado</div>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 shadow-sm">
-                    <span className="text-[11px] font-medium text-slate-400">Preço Teto Gordon</span>
-                    <p className="mt-1 text-2xl font-extrabold text-cyan-400">
-                      R$ {summaryData.gordonCeilingPrice ? summaryData.gordonCeilingPrice.toFixed(2) : '0,00'}
-                    </p>
-                    <div className="mt-1 text-[11px] text-slate-500">Modelo DDM descontado</div>
-                  </div>
-                </div>
+                  {isTijolo && (
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-4 text-xs text-slate-300 flex items-start gap-3">
+                      <Building className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">Metodologia Bazin para FII de Tijolo</span>
+                          <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                            Ref: Tesouro IPCA+ ({tesouroIpcaRate.toFixed(2)}%)
+                          </span>
+                        </div>
+                        <p className="text-slate-400 leading-relaxed text-[11px]">
+                          Como os ativos de tijolo têm imóveis físicos cujos aluguéis se corrigem com a inflação oficial, seu rendimento é real. O valuation Bazin técnico adota como taxa base o <strong>Tesouro IPCA+ ({tesouroIpcaRate.toFixed(2)}% a.a.)</strong> + 1,50% de prêmio de risco, exigindo yield alvo de <strong>{tijoloValuation.targetYield.toFixed(2)}% a.a.</strong>
+                        </p>
+                        <div className="pt-1 text-[10px] text-slate-500">
+                          Bazin Clássico (6% fixo): R$ {(summaryData.bazinCeilingPriceSixPercent || 0).toFixed(2)} &bull; Taxa Alvo Gordon: R$ {(summaryData.gordonCeilingPrice || 0).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5 space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -352,8 +412,9 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                     </div>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {activeTab === 'dividends' && (
               <div className="space-y-4 animate-fadeIn">

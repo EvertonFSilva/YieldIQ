@@ -19,6 +19,7 @@ import { assetService } from '../services/apiClient';
 import { AssetItem } from '../types';
 import { AssetDetailModal } from './AssetDetailModal';
 import { CustomSelect } from './common/CustomSelect';
+import { getAssetClassificationLabel } from '../utils/assetValuation';
 
 export const AssetExplorer: React.FC = () => {
   const [assetsList, setAssetsList] = useState<AssetItem[]>([]);
@@ -332,6 +333,8 @@ export const AssetExplorer: React.FC = () => {
               ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
               : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
 
+            const classification = getAssetClassificationLabel(assetItem);
+
             return (
               <div
                 key={assetItem.id}
@@ -340,12 +343,15 @@ export const AssetExplorer: React.FC = () => {
               >
                 <div>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={`rounded-lg px-2.5 py-1 font-mono text-base font-bold border ${badgeClasses}`}>
                         {assetItem.ticker}
                       </span>
                       <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400 uppercase">
                         {assetItem.type.replace('_', '-')}
+                      </span>
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold border ${classification.badgeStyle}`}>
+                        {classification.label}
                       </span>
                     </div>
                     <ArrowUpRight className="h-4 w-4 text-slate-600 transition group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -375,32 +381,41 @@ export const AssetExplorer: React.FC = () => {
                   <th className="p-4">Código do Ativo</th>
                   <th className="p-4">Nome do Ativo</th>
                   <th className="p-4">Tipo</th>
+                  <th className="p-4">Classificação</th>
                   <th className="p-4">Segmento</th>
                   <th className="p-4 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {paginatedAssets.map((assetItem) => (
-                  <tr
-                    key={assetItem.id}
-                    onClick={() => setSelectedAssetForModal(assetItem)}
-                    className="hover:bg-slate-800/40 cursor-pointer transition"
-                  >
-                    <td className="p-4 font-mono font-bold text-white text-sm">{assetItem.ticker}</td>
-                    <td className="p-4 text-slate-300 font-medium max-w-md truncate">{assetItem.name}</td>
-                    <td className="p-4">
-                      <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
-                        {assetItem.type.replace('_', '-')}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-400">{assetItem.metadata?.segment || 'Geral'}</td>
-                    <td className="p-4 text-right">
-                      <button className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 transition">
-                        Ver Detalhes
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {paginatedAssets.map((assetItem) => {
+                  const classification = getAssetClassificationLabel(assetItem);
+                  return (
+                    <tr
+                      key={assetItem.id}
+                      onClick={() => setSelectedAssetForModal(assetItem)}
+                      className="hover:bg-slate-800/40 cursor-pointer transition"
+                    >
+                      <td className="p-4 font-mono font-bold text-white text-sm">{assetItem.ticker}</td>
+                      <td className="p-4 text-slate-300 font-medium max-w-md truncate">{assetItem.name}</td>
+                      <td className="p-4">
+                        <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                          {assetItem.type.replace('_', '-')}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold border ${classification.badgeStyle}`}>
+                          {classification.label}
+                        </span>
+                      </td>
+                      <td className="p-4 text-slate-400">{assetItem.metadata?.segment || 'Geral'}</td>
+                      <td className="p-4 text-right">
+                        <button className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 transition">
+                          Ver Detalhes
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -8,43 +8,45 @@ import {
   PieChart,
   Landmark,
   Snowflake,
-  Plus,
   Trash2,
   ChevronDown,
   Activity,
   FileSpreadsheet,
   Upload,
   Download,
-  HelpCircle
+  HelpCircle,
+  Percent,
+  Trophy,
+  Calendar
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { assetService, treasuryService } from '../services/apiClient';
 import { TreasuryBondItem } from '../types';
 import { useToast } from '../context/ToastContext';
+import { SimpleInterestTool } from './tools/SimpleInterestTool';
+import { FirstMillionTool } from './tools/FirstMillionTool';
+import { DividendCalendarTool } from './tools/DividendCalendarTool';
+import { PortfolioRentabilityTool } from './tools/PortfolioRentabilityTool';
+import { BazinCeilingTool } from './tools/BazinCeilingTool';
+import { MultiComparatorTool } from './tools/MultiComparatorTool';
+import { AssetAutocompleteInput } from './common/AssetAutocompleteInput';
 
-type ToolCategory = 'all' | 'simulators' | 'valuation' | 'treasury_fire';
+type ToolCategory = 'all' | 'statements' | 'assets' | 'simulators';
 type ToolId =
-  | 'compound_interest'
-  | 'bazin_ceiling'
-  | 'snowball_magic'
-  | 'treasury_simulator'
+  | 'tax_statement'
+  | 'portfolio_rentability'
+  | 'b3_earnings_calculator'
+  | 'multi_comparator'
   | 'risk_analyzer'
+  | 'dividend_calendar'
+  | 'treasury_simulator'
+  | 'compound_interest'
+  | 'simple_interest'
+  | 'bazin_ceiling'
+  | 'first_million'
   | 'avg_price_sim'
   | 'fire_four_percent'
-  | 'multi_comparator'
-  | 'tax_statement'
-  | 'b3_earnings_calculator';
-
-interface MultiAssetComparisonSlot {
-  ticker: string;
-  price: number;
-  dy: number;
-  annualDiv: number;
-  segment: string;
-  type: string;
-  isLoading: boolean;
-  error: string | null;
-}
+  | 'snowball_magic';
 
 interface TradeOperationItem {
   id: string;
@@ -65,12 +67,6 @@ export const ToolsView: React.FC = () => {
   const [yearsPeriod, setYearsPeriod] = useState<number>(10);
   const [showSimpleInterestComparison, setShowSimpleInterestComparison] = useState<boolean>(false);
   const [showDetailedSchedule, setShowDetailedSchedule] = useState<boolean>(false);
-
-  const [bazinSearchTicker, setBazinSearchTicker] = useState<string>('MXRF11');
-  const [ceilingDividend, setCeilingDividend] = useState<number>(1.26);
-  const [ceilingRequiredYield, setCeilingRequiredYield] = useState<number>(6.0);
-  const [ceilingCurrentPrice, setCeilingCurrentPrice] = useState<number>(9.85);
-  const [isLoadingBazin, setIsLoadingBazin] = useState<boolean>(false);
 
   const [snowballTicker, setSnowballTicker] = useState<string>('MXRF11');
   const [snowballSharePrice, setSnowballSharePrice] = useState<number>(9.85);
@@ -101,13 +97,6 @@ export const ToolsView: React.FC = () => {
   const [monthlyFireContribution, setMonthlyFireContribution] = useState<number>(1500);
   const [fireExpectedRate, setFireExpectedRate] = useState<number>(10.0);
 
-  const [comparisonSlots, setComparisonSlots] = useState<MultiAssetComparisonSlot[]>([
-    { ticker: 'MXRF11', price: 9.85, dy: 12.8, annualDiv: 1.26, segment: 'Papel', type: 'FII', isLoading: false, error: null },
-    { ticker: 'HGLG11', price: 152.00, dy: 9.4, annualDiv: 14.28, segment: 'Logística', type: 'FII', isLoading: false, error: null },
-    { ticker: 'XPML11', price: 104.50, dy: 9.1, annualDiv: 9.50, segment: 'Shoppings', type: 'FII', isLoading: false, error: null }
-  ]);
-  const [newComparisonTicker, setNewComparisonTicker] = useState<string>('');
-
   const [tradeOperations, setTradeOperations] = useState<TradeOperationItem[]>([
     { id: '1', date: '2026-01-15', type: 'BUY', quantity: 100, unitPrice: 10.20 },
     { id: '2', date: '2026-03-20', type: 'BUY', quantity: 50, unitPrice: 9.60 },
@@ -124,24 +113,6 @@ export const ToolsView: React.FC = () => {
       setTreasuryBonds(bonds || []);
     }).catch(() => {});
   }, []);
-
-  const handleFetchBazinAsset = async (): Promise<void> => {
-    const clean = bazinSearchTicker.trim().toUpperCase();
-    if (!clean) return;
-    setIsLoadingBazin(true);
-    try {
-      const summary = await assetService.retrieveSummary(clean);
-      const price = summary.priceQuote?.currentPrice || 0;
-      const divs = summary.annualDividendSum || 0;
-      setCeilingCurrentPrice(price);
-      setCeilingDividend(divs > 0 ? divs : 1.20);
-      toast.success(`Dados oficiais de ${clean} carregados com sucesso!`);
-    } catch {
-      toast.error(`Não foi possível buscar dados para ${clean}`);
-    } finally {
-      setIsLoadingBazin(false);
-    }
-  };
 
   const handleFetchSnowballAsset = async (): Promise<void> => {
     const clean = snowballTicker.trim().toUpperCase();
@@ -175,68 +146,6 @@ export const ToolsView: React.FC = () => {
     } finally {
       setIsLoadingRisk(false);
     }
-  };
-
-  const handleAddComparisonSlot = async (): Promise<void> => {
-    const clean = newComparisonTicker.trim().toUpperCase();
-    if (!clean) return;
-    if (comparisonSlots.some((s) => s.ticker === clean)) {
-      toast.warning('Este ativo já está na comparação.');
-      return;
-    }
-    if (comparisonSlots.length >= 9) {
-      toast.warning('Limite máximo de 9 ativos atingido.');
-      return;
-    }
-
-    const tempSlot: MultiAssetComparisonSlot = {
-      ticker: clean,
-      price: 0,
-      dy: 0,
-      annualDiv: 0,
-      segment: 'Geral',
-      type: 'FII',
-      isLoading: true,
-      error: null
-    };
-
-    setComparisonSlots((prev) => [...prev, tempSlot]);
-    setNewComparisonTicker('');
-
-    try {
-      const summary = await assetService.retrieveSummary(clean);
-      setComparisonSlots((prev) =>
-        prev.map((s) =>
-          s.ticker === clean
-            ? {
-                ...s,
-                price: summary.priceQuote?.currentPrice || 0,
-                dy: summary.trailingDividendYieldPercentage || 0,
-                annualDiv: summary.annualDividendSum || 0,
-                segment: (summary as any).metadata?.segment || 'Renda Imobiliária',
-                isLoading: false
-              }
-            : s
-        )
-      );
-      toast.success(`Ativo ${clean} adicionado ao comparador!`);
-    } catch {
-      setComparisonSlots((prev) =>
-        prev.map((s) =>
-          s.ticker === clean
-            ? { ...s, isLoading: false, error: 'Falha ao buscar cotação' }
-            : s
-        )
-      );
-    }
-  };
-
-  const handleRemoveComparisonSlot = (tickerToRemove: string): void => {
-    if (comparisonSlots.length <= 2) {
-      toast.warning('Mantenha pelo menos 2 ativos para comparação.');
-      return;
-    }
-    setComparisonSlots((prev) => prev.filter((s) => s.ticker !== tickerToRemove));
   };
 
   const handleAddTrade = (event: React.FormEvent): void => {
@@ -292,14 +201,6 @@ export const ToolsView: React.FC = () => {
 
   const simpleInterestTotal = initialInvestment + (initialInvestment * (annualYieldRate / 100) * yearsPeriod) + (monthlyContribution * monthsTotal);
   const compoundAdvantage = Math.max(0, simulatedTotalWealth - simpleInterestTotal);
-
-  const bazinCalculatedCeiling = ceilingRequiredYield > 0
-    ? ceilingDividend / (ceilingRequiredYield / 100)
-    : 0;
-
-  const bazinSafetyMargin = ceilingCurrentPrice > 0
-    ? ((bazinCalculatedCeiling / ceilingCurrentPrice) - 1) * 100
-    : 0;
 
   const snowballMagicNumber = snowballMonthlyDiv > 0
     ? Math.ceil(snowballSharePrice / snowballMonthlyDiv)
@@ -488,30 +389,23 @@ export const ToolsView: React.FC = () => {
       }
 
       const cols = Object.keys(rawRows[0]);
-      const colCheck = (s: string) => cols.some((c) => c.toLowerCase().includes(s.toLowerCase()));
+      const findCol = (terms: string[]) => cols.find((c) => {
+        const lc = c.toLowerCase();
+        return terms.some((t) => lc.includes(t.toLowerCase()));
+      });
 
-      if (
-        !colCheck('produto') ||
-        !colCheck('movimenta') ||
-        !colCheck('data') ||
-        !colCheck('valor') ||
-        !colCheck('quantidade')
-      ) {
+      const colProduto = findCol(['produto', 'ativo', 'ticker', 'código', 'codigo', 'papel']);
+      const colMov = findCol(['movimenta', 'tipo', 'histórico', 'historico', 'evento', 'descri']);
+      const colData = findCol(['data', 'pagamento', 'liquidação', 'liquidacao', 'pregao', 'pregão']);
+      const colValor = findCol(['valor da operação', 'valor da operacao', 'valor líquido', 'valor liquido', 'valor', 'total']);
+      const colQtd = findCol(['quantidade', 'qtd', 'cotas']);
+
+      if (!colProduto || !colMov || !colData || !colValor || !colQtd) {
         toast.error(
           `Colunas esperadas da B3: Produto, Movimentação, Data, Valor da Operação, Quantidade. Encontradas: ${cols.join(', ')}`
         );
         return;
       }
-
-      const colMap: Record<string, string> = {};
-      cols.forEach((c) => {
-        const lc = c.toLowerCase();
-        if (lc.includes('produto')) colMap.produto = c;
-        else if (lc.includes('movimenta')) colMap.movimentacao = c;
-        else if (lc.includes('data') || lc.includes('date')) colMap.data = c;
-        else if (lc.includes('valor') || lc.includes('opera')) colMap.valor = c;
-        else if (lc.includes('quantidade')) colMap.quantidade = c;
-      });
 
       const conversionMap: Record<string, string> = {};
       earningsConversions.forEach((c) => {
@@ -524,26 +418,27 @@ export const ToolsView: React.FC = () => {
       let skippedCount = 0;
 
       rawRows.forEach((row, idx) => {
-        const desc = String(row[colMap.movimentacao] || '');
+        const desc = String(row[colMov] || '');
         if (!desc.includes('Rendimento') && !desc.includes('Dividendo') && !desc.includes('Juros')) {
           return;
         }
 
-        const rawProduct = String(row[colMap.produto] || '').trim();
-        const rawTicker = (rawProduct.split(' - ')[0] || '').trim().toUpperCase();
+        const rawProduct = String(row[colProduto] || '').trim();
+        const tickerMatch = rawProduct.match(/([A-Z]{4}[0-9]{1,2}[B]?)/i);
+        const rawTicker = tickerMatch ? tickerMatch[1].toUpperCase() : (rawProduct.split(/[\s-]+/)[0] || '').trim().toUpperCase();
         if (!rawTicker || rawTicker.length < 4) {
           skippedCount++;
           return;
         }
 
         const resolvedTicker = conversionMap[rawTicker] || rawTicker;
-        const dateObj = parseDateValue(row[colMap.data]);
+        const dateObj = parseDateValue(row[colData]);
         if (!dateObj) {
           skippedCount++;
           return;
         }
 
-        const rawVal = row[colMap.valor];
+        const rawVal = row[colValor];
         let totalVal = 0;
         if (typeof rawVal === 'number') {
           totalVal = rawVal;
@@ -558,7 +453,7 @@ export const ToolsView: React.FC = () => {
             ) || 0;
         }
 
-        const rawQty = row[colMap.quantidade];
+        const rawQty = row[colQtd];
         let qty = 0;
         if (typeof rawQty === 'number') {
           qty = rawQty;
@@ -721,84 +616,116 @@ export const ToolsView: React.FC = () => {
     icon: React.ReactNode;
   }> = [
     {
+      id: 'tax_statement',
+      category: 'statements',
+      title: 'Preço Médio Fiscal (IRPF)',
+      description: 'Calcule o preço médio e a quantidade real dos seus ativos processando os dados do seu extrato para declaração fiscal.',
+      badge: 'Extrato IRPF',
+      icon: <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'portfolio_rentability',
+      category: 'statements',
+      title: 'Rentabilidade da Carteira (CAGR)',
+      description: 'Descubra o CAGR da carteira inteira considerando aportes, resgates e proventos, com a evolução e comparação com a meta.',
+      badge: 'CAGR Carteira',
+      icon: <TrendingUp className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'b3_earnings_calculator',
+      category: 'statements',
+      title: 'Total de Proventos B3',
+      description: 'Organize e totalize todos os seus rendimentos agrupados por ativo e ano, extraindo os dados diretamente do Excel da B3.',
+      badge: 'Extrato Excel',
+      icon: <Upload className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'multi_comparator',
+      category: 'assets',
+      title: 'Comparador de Ativos',
+      description: 'Coloque até 9 FIIs, FIAGROs ou FI-INFRAs lado a lado e compare preço, proventos, dividend yield e teto Bazin em tempo real.',
+      badge: 'Até 9 Ativos',
+      icon: <ArrowRightLeft className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'risk_analyzer',
+      category: 'assets',
+      title: 'Analisador de Risco',
+      description: 'Volatilidade anualizada, drawdown máximo, melhor e pior dia e o retorno mês a mês de qualquer ativo da B3.',
+      badge: 'Volatilidade',
+      icon: <Activity className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'dividend_calendar',
+      category: 'assets',
+      title: 'Calendário de Dividendos',
+      description: 'Monte a carteira e veja quando cada provento cai, a renda mensal média e o dividend yield ponderado da posição.',
+      badge: 'Agenda Proventos',
+      icon: <Calendar className="h-5 w-5 text-emerald-400" />
+    },
+    {
+      id: 'treasury_simulator',
+      category: 'assets',
+      title: 'Tesouro Direto',
+      description: 'Simule o rendimento bruto, o imposto de renda regressivo e o resultado líquido do seu Tesouro com taxas oficiais.',
+      badge: 'IPCA+ e Selic',
+      icon: <Landmark className="h-5 w-5 text-emerald-400" />
+    },
+    {
       id: 'compound_interest',
       category: 'simulators',
-      title: 'Juros Compostos & Renda',
-      description: 'Projete patrimônio futuro, renda mensal vitalícia e o efeito multiplicador.',
+      title: 'Juros Compostos',
+      description: 'Projete a evolução do seu patrimônio ao longo do tempo utilizando o efeito multiplicador e exponencial dos juros compostos.',
       badge: 'Exponencial',
       icon: <TrendingUp className="h-5 w-5 text-emerald-400" />
     },
     {
-      id: 'snowball_magic',
+      id: 'simple_interest',
       category: 'simulators',
-      title: 'Efeito Bola de Neve (Magic Number)',
-      description: 'Descubra quantas cotas compram 1 nova cota todo mês sem tirar dinheiro do bolso.',
-      badge: 'Automático',
-      icon: <Snowflake className="h-5 w-5 text-cyan-400" />
+      title: 'Juros Simples',
+      description: 'Descubra o rendimento exato de taxas fixas ao longo do tempo para investimentos que seguem juros lineares não-capitalizados.',
+      badge: 'Linear',
+      icon: <Percent className="h-5 w-5 text-emerald-400" />
     },
     {
       id: 'bazin_ceiling',
-      category: 'valuation',
-      title: 'Preço Teto Décio Bazin',
-      description: 'Valuation para garantir yield mínimo de 6% e margem de segurança.',
-      badge: 'Bazin 6%',
-      icon: <Calculator className="h-5 w-5 text-teal-400" />
+      category: 'simulators',
+      title: 'Preço Teto (Bazin & Gordon)',
+      description: 'Aplique o Método Décio Bazin para descobrir o preço máximo ideal a pagar garantindo o yield exigido via Selic ou Tesouro IPCA+.',
+      badge: 'Bazin & IPCA+',
+      icon: <Calculator className="h-5 w-5 text-emerald-400" />
     },
     {
-      id: 'treasury_simulator',
-      category: 'treasury_fire',
-      title: 'Tesouro Direto & Tabela de IR',
-      description: 'Simule títulos oficiais descontando IR regressivo (22,5% a 15%) e taxa B3.',
-      badge: 'Oficial Tesouro',
-      icon: <Landmark className="h-5 w-5 text-emerald-400" />
-    },
-    {
-      id: 'multi_comparator',
-      category: 'valuation',
-      title: 'Comparador Multiativo (Até 9)',
-      description: 'Coloque ativos lado a lado em cotação, DY, proventos e margem Bazin.',
-      badge: 'Multiativo',
-      icon: <ArrowRightLeft className="h-5 w-5 text-purple-400" />
-    },
-    {
-      id: 'risk_analyzer',
-      category: 'valuation',
-      title: 'Analisador de Risco & Volatilidade',
-      description: 'Volatilidade anualizada, drawdown máximo, melhor e pior dia e heatmap.',
-      badge: 'Risco',
-      icon: <Activity className="h-5 w-5 text-amber-400" />
+      id: 'first_million',
+      category: 'simulators',
+      title: 'O 1º Milhão',
+      description: 'Descubra exatamente quantos anos e qual o esforço de aporte mensal necessário para atingir o sonhado primeiro milhão investido.',
+      badge: '1º Milhão',
+      icon: <Trophy className="h-5 w-5 text-emerald-400" />
     },
     {
       id: 'avg_price_sim',
       category: 'simulators',
-      title: 'Simulador de Preço Médio',
-      description: 'Projete o impacto de uma nova compra no preço médio antes de boletear.',
-      badge: 'Simulação',
-      icon: <PieChart className="h-5 w-5 text-teal-400" />
+      title: 'Preço Médio (Simulação)',
+      description: 'Projete o impacto de uma nova compra no seu portfólio. Saiba exatamente qual será seu novo preço médio antes de boletear.',
+      badge: 'Nova Compra',
+      icon: <PieChart className="h-5 w-5 text-emerald-400" />
     },
     {
       id: 'fire_four_percent',
-      category: 'treasury_fire',
-      title: 'Regra dos 4% & 1º Milhão',
-      description: 'Trinity Study para independência financeira e tempo para atingir 1 milhão.',
+      category: 'simulators',
+      title: 'Regra dos 4% (F.I.R.E.)',
+      description: 'Calcule o montante exato necessário para atingir a Independência Financeira e viver de renda com saques seguros de 4% ao ano.',
       badge: 'F.I.R.E.',
-      icon: <Target className="h-5 w-5 text-amber-400" />
+      icon: <Target className="h-5 w-5 text-emerald-400" />
     },
     {
-      id: 'tax_statement',
-      category: 'treasury_fire',
-      title: 'Extrato B3 & Preço Médio Fiscal',
-      description: 'Controle de operações para declaração de IRPF com saldo em custódia.',
-      badge: 'Fiscal IRPF',
-      icon: <FileSpreadsheet className="h-5 w-5 text-cyan-400" />
-    },
-    {
-      id: 'b3_earnings_calculator',
-      category: 'treasury_fire',
-      title: 'Extrato B3 & Cálculo de Proventos',
-      description: 'Totalize proventos recebidos por ano e ativo via planilha Excel da B3 com conversões e desdobramentos.',
-      badge: 'Extrato B3',
-      icon: <Upload className="h-5 w-5 text-emerald-400" />
+      id: 'snowball_magic',
+      category: 'simulators',
+      title: 'Efeito Bola de Neve',
+      description: 'Descubra o momento mágico em que os rendimentos de um ativo se tornam suficientes para comprar novas cotas sem tirar do bolso.',
+      badge: 'Magic Number',
+      icon: <Snowflake className="h-5 w-5 text-emerald-400" />
     }
   ];
 
@@ -814,28 +741,28 @@ export const ToolsView: React.FC = () => {
         <div className="relative z-10 space-y-4 max-w-4xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-400">
             <Wrench className="h-4 w-4" />
-            <span>YieldIQ Financial Suite &bull; 10 Ferramentas Avançadas</span>
+            <span>YieldIQ Financial Suite &bull; 14 Ferramentas de Carteira</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Central de Ferramentas, Valuation & Gestão
+            Central de Ferramentas, Valuation & Extratos
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-            Ecossistema completo de inteligência para investidores de FIIs, FIAGROs, FI-INFRAs e Tesouro Direto. Simulações precisas alinhadas à legislação tributária brasileira.
+            Processe extratos da B3, compare ativos em tempo real com dados oficiais, calcule rentabilidade CAGR e projete metas com simulações financeiras avançadas.
           </p>
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {[
-              { id: 'all', label: 'Todas as 10 Ferramentas' },
-              { id: 'simulators', label: 'Simuladores & Renda' },
-              { id: 'valuation', label: 'Valuation & Análise' },
-              { id: 'treasury_fire', label: 'Tesouro, FIRE & Fiscal' }
+              { id: 'all', label: 'Todas as 14 Ferramentas' },
+              { id: 'statements', label: 'Análise de Extrato (3)' },
+              { id: 'assets', label: 'Análise de Ativos (4)' },
+              { id: 'simulators', label: 'Simuladores (7)' }
             ].map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id as ToolCategory)}
                 className={`rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 ${
                   selectedCategory === cat.id
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold shadow-emerald-500/20'
                     : 'bg-slate-950/70 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
               >
@@ -843,10 +770,37 @@ export const ToolsView: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <div className="flex flex-wrap items-center gap-4 pt-3 text-xs text-slate-400 border-t border-slate-800/80">
+            <div className="flex items-center gap-1.5">
+              <strong className="text-white font-mono text-sm">0</strong>
+              <span>custo mensal</span>
+            </div>
+            <span className="text-slate-700">&bull;</span>
+            <div className="flex items-center gap-1.5">
+              <strong className="text-white font-mono text-sm">3</strong>
+              <span>ferramentas de extrato</span>
+            </div>
+            <span className="text-slate-700">&bull;</span>
+            <div className="flex items-center gap-1.5">
+              <strong className="text-white font-mono text-sm">4</strong>
+              <span>análises de ativos</span>
+            </div>
+            <span className="text-slate-700">&bull;</span>
+            <div className="flex items-center gap-1.5">
+              <strong className="text-white font-mono text-sm">7</strong>
+              <span>simuladores</span>
+            </div>
+            <span className="text-slate-700">&bull;</span>
+            <div className="flex items-center gap-1.5">
+              <strong className="text-emerald-400 font-mono text-sm">+600</strong>
+              <span>ativos cadastrados</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
         {filteredTools.map((tool) => (
           <button
             key={tool.id}
@@ -1064,21 +1018,24 @@ export const ToolsView: React.FC = () => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Buscar Ativo Oficial na B3</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Buscar Código do Ativo</label>
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={snowballTicker}
-                      onChange={(e) => setSnowballTicker(e.target.value.toUpperCase())}
-                      placeholder="Ex: MXRF11"
-                      className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 font-mono text-xs uppercase text-white focus:border-cyan-500 outline-none"
-                    />
+                    <div className="flex-1">
+                      <AssetAutocompleteInput
+                        value={snowballTicker}
+                        onChange={setSnowballTicker}
+                        onSelect={(asset) => {
+                          setSnowballTicker(asset.ticker);
+                          handleFetchSnowballAsset();
+                        }}
+                        placeholder="Ex: MXRF11"
+                      />
+                    </div>
                     <button
                       type="button"
-                      onClick={handleFetchSnowballAsset}
+                      onClick={() => handleFetchSnowballAsset()}
                       disabled={isLoadingSnowball}
-                      className="rounded-xl bg-cyan-600 hover:bg-cyan-500 px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+                      className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 transition disabled:opacity-50 shadow-md shadow-emerald-500/20 active:scale-95"
                     >
                       {isLoadingSnowball ? '...' : 'Sincronizar'}
                     </button>
@@ -1195,108 +1152,11 @@ export const ToolsView: React.FC = () => {
           </div>
         )}
 
-        {activeToolId === 'bazin_ceiling' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fadeIn">
-            <div className="lg:col-span-5 rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-xl">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                <Calculator className="h-5 w-5 text-teal-400" />
-                <h2 className="text-base font-bold text-white">Parâmetros do Método Bazin</h2>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Preencher via Ativo da B3</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={bazinSearchTicker}
-                      onChange={(e) => setBazinSearchTicker(e.target.value.toUpperCase())}
-                      placeholder="Ex: MXRF11"
-                      className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 font-mono text-xs uppercase text-white focus:border-teal-500 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleFetchBazinAsset}
-                      disabled={isLoadingBazin}
-                      className="rounded-xl bg-teal-600 hover:bg-teal-500 px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
-                    >
-                      {isLoadingBazin ? '...' : 'Buscar'}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Proventos Pagos nos Últimos 12M (R$)</label>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={ceilingDividend}
-                    onChange={(e) => setCeilingDividend(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-white focus:border-teal-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Yield Mínimo Exigido (% a.a.)</label>
-                  <input
-                    type="number"
-                    step={0.5}
-                    value={ceilingRequiredYield}
-                    onChange={(e) => setCeilingRequiredYield(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-white focus:border-teal-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Cotação Atual de Mercado (R$)</label>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={ceilingCurrentPrice}
-                    onChange={(e) => setCeilingCurrentPrice(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-white focus:border-teal-500 outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-7 space-y-6">
-              <div className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-6 sm:p-8 space-y-6 shadow-2xl">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Preço Teto Máximo Recomendado</span>
-                  <p className="mt-1 text-4xl sm:text-5xl font-extrabold text-white">
-                    R$ {bazinCalculatedCeiling.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">Preço atual de mercado: <strong>R$ {ceilingCurrentPrice.toFixed(2)}</strong></p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60">
-                    <span className="text-[11px] text-slate-400 block">Margem de Segurança</span>
-                    <span className={`text-2xl font-extrabold ${bazinSafetyMargin >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {bazinSafetyMargin >= 0 ? '+' : ''}{bazinSafetyMargin.toFixed(1)}%
-                    </span>
-                    <span className="text-[10px] text-slate-500 block mt-0.5">
-                      {bazinSafetyMargin >= 0 ? 'Ativo negociando com desconto' : 'Ativo negociando acima do teto'}
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60">
-                    <span className="text-[11px] text-slate-400 block">Diagnóstico de Compra</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`h-2.5 w-2.5 rounded-full ${bazinSafetyMargin >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                      <span className="text-base font-bold text-white">
-                        {bazinSafetyMargin >= 0 ? 'Abaixo do Teto (Comprar)' : 'Acima do Teto (Aguardar)'}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-500 block mt-0.5">Critério de Décio Bazin</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeToolId === 'bazin_ceiling' && <BazinCeilingTool />}
+        {activeToolId === 'simple_interest' && <SimpleInterestTool />}
+        {activeToolId === 'first_million' && <FirstMillionTool />}
+        {activeToolId === 'dividend_calendar' && <DividendCalendarTool />}
+        {activeToolId === 'portfolio_rentability' && <PortfolioRentabilityTool />}
 
         {activeToolId === 'treasury_simulator' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fadeIn">
@@ -1436,123 +1296,7 @@ export const ToolsView: React.FC = () => {
           </div>
         )}
 
-        {activeToolId === 'multi_comparator' && (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-800 bg-slate-900/60">
-              <div>
-                <h3 className="text-sm font-bold text-white">Comparador Multiativo da B3</h3>
-                <p className="text-xs text-slate-400">Adicione até 9 ativos para análise comparativa de indicadores.</p>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={newComparisonTicker}
-                  onChange={(e) => setNewComparisonTicker(e.target.value.toUpperCase())}
-                  placeholder="Novo ticker"
-                  className="w-32 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 font-mono text-xs uppercase text-white focus:border-purple-500 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddComparisonSlot}
-                  className="flex items-center gap-1 rounded-xl bg-purple-600 hover:bg-purple-500 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Adicionar</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/60 shadow-xl">
-              <table className="w-full text-left font-mono text-xs">
-                <thead>
-                  <tr className="bg-slate-900 border-b border-slate-800 text-slate-400">
-                    <th className="p-3.5">Métrica</th>
-                    {comparisonSlots.map((slot) => (
-                      <th key={slot.ticker} className="p-3.5 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="font-bold text-white text-sm">{slot.ticker}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveComparisonSlot(slot.ticker)}
-                            className="text-slate-500 hover:text-rose-400 transition"
-                            title="Remover da comparação"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Preço Atual</td>
-                    {comparisonSlots.map((s) => (
-                      <td key={s.ticker} className="p-3.5 text-center font-bold text-white">
-                        {s.isLoading ? '...' : `R$ ${s.price.toFixed(2)}`}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Dividend Yield (12M)</td>
-                    {comparisonSlots.map((s) => (
-                      <td key={s.ticker} className="p-3.5 text-center font-bold text-emerald-400">
-                        {s.isLoading ? '...' : `${s.dy.toFixed(2)}%`}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Proventos Totais 12M</td>
-                    {comparisonSlots.map((s) => (
-                      <td key={s.ticker} className="p-3.5 text-center text-teal-400">
-                        {s.isLoading ? '...' : `R$ ${s.annualDiv.toFixed(2)}`}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Preço Teto Bazin (6%)</td>
-                    {comparisonSlots.map((s) => {
-                      const bazin = s.annualDiv > 0 ? s.annualDiv / 0.06 : 0;
-                      return (
-                        <td key={s.ticker} className="p-3.5 text-center text-cyan-400 font-semibold">
-                          {s.isLoading ? '...' : `R$ ${bazin.toFixed(2)}`}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Margem de Segurança</td>
-                    {comparisonSlots.map((s) => {
-                      const bazin = s.annualDiv > 0 ? s.annualDiv / 0.06 : 0;
-                      const margin = s.price > 0 && bazin > 0 ? ((bazin / s.price) - 1) * 100 : 0;
-                      return (
-                        <td key={s.ticker} className="p-3.5 text-center font-bold">
-                          {s.isLoading ? (
-                            '...'
-                          ) : (
-                            <span className={margin >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                              {margin >= 0 ? '+' : ''}{margin.toFixed(1)}%
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  <tr className="hover:bg-slate-900/40">
-                    <td className="p-3.5 font-bold text-slate-400 font-sans">Segmento de Mercado</td>
-                    {comparisonSlots.map((s) => (
-                      <td key={s.ticker} className="p-3.5 text-center text-[11px] text-slate-400 font-sans">
-                        {s.segment}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {activeToolId === 'multi_comparator' && <MultiComparatorTool />}
 
         {activeToolId === 'risk_analyzer' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fadeIn">
@@ -1564,21 +1308,24 @@ export const ToolsView: React.FC = () => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Buscar Ativo</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Buscar Código do Ativo</label>
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={riskTicker}
-                      onChange={(e) => setRiskTicker(e.target.value.toUpperCase())}
-                      placeholder="Ex: HGLG11"
-                      className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 font-mono text-xs uppercase text-white focus:border-amber-500 outline-none"
-                    />
+                    <div className="flex-1">
+                      <AssetAutocompleteInput
+                        value={riskTicker}
+                        onChange={setRiskTicker}
+                        onSelect={(asset) => {
+                          setRiskTicker(asset.ticker);
+                          handleFetchRiskAsset();
+                        }}
+                        placeholder="Ex: HGLG11"
+                      />
+                    </div>
                     <button
                       type="button"
-                      onClick={handleFetchRiskAsset}
+                      onClick={() => handleFetchRiskAsset()}
                       disabled={isLoadingRisk}
-                      className="rounded-xl bg-amber-600 hover:bg-amber-500 px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
+                      className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 transition disabled:opacity-50 shadow-md shadow-emerald-500/20 active:scale-95"
                     >
                       {isLoadingRisk ? '...' : 'Analisar'}
                     </button>
@@ -1599,7 +1346,7 @@ export const ToolsView: React.FC = () => {
                         onClick={() => setRiskPeriod(p.id as any)}
                         className={`rounded-xl py-2 text-xs font-bold transition ${
                           riskPeriod === p.id
-                            ? 'bg-amber-500 text-slate-950'
+                            ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-extrabold'
                             : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
                         }`}
                       >
@@ -1914,7 +1661,7 @@ export const ToolsView: React.FC = () => {
 
                   <button
                     type="submit"
-                    className="w-full rounded-xl bg-cyan-600 hover:bg-cyan-500 py-2.5 text-xs font-bold text-white transition shadow-sm"
+                    className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 py-2.5 text-xs font-bold text-slate-950 transition shadow-md shadow-emerald-500/20 active:scale-95"
                   >
                     Lançar no Extrato
                   </button>
@@ -2049,7 +1796,7 @@ export const ToolsView: React.FC = () => {
                   <div className="border-t border-slate-800 pt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-white uppercase tracking-wider">
-                        Conversão de Ativos (Fusões / Mudanças de Ticker)
+                        Conversão de Ativos (Fusões / Mudança de Código)
                       </span>
                       <button
                         type="button"
