@@ -1,4 +1,5 @@
-import { supabaseClient, supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
+import { supabaseClient } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 import { ValidationError, UnauthorizedError } from '../../domain/errors/AppError';
 
 export interface AuthenticateUserCommand {
@@ -12,6 +13,7 @@ export interface AuthenticateUserResult {
   userId: string;
   username: string;
   apiKey: string | null;
+  role: string;
   privilege: string;
 }
 
@@ -27,17 +29,16 @@ export class AuthenticateUserUseCase {
     let resolvedEmail = trimmedIdentifier;
 
     if (!resolvedEmail.includes('@')) {
-      const { data: userLookupRecord } = await supabaseAdmin
-        .from('users')
-        .select('email')
-        .ilike('username', trimmedIdentifier)
-        .maybeSingle();
+      const userLookupResult = await postgresDatabase.query(
+        'SELECT email FROM public.users WHERE username ILIKE $1 LIMIT 1',
+        [trimmedIdentifier]
+      );
 
-      if (!userLookupRecord || !userLookupRecord.email) {
+      if (userLookupResult.rows.length === 0 || !userLookupResult.rows[0].email) {
         throw new UnauthorizedError('Invalid user credentials provided');
       }
 
-      resolvedEmail = userLookupRecord.email;
+      resolvedEmail = userLookupResult.rows[0].email;
     }
 
     const { data: authenticationData, error: authenticationError } =
@@ -50,11 +51,13 @@ export class AuthenticateUserUseCase {
       throw new UnauthorizedError('Invalid user credentials provided');
     }
 
-    const { data: userProfileRecord } = await supabaseAdmin
-      .from('users')
-      .select('api_key, username, privilege')
-      .eq('id', authenticationData.user.id)
-      .maybeSingle();
+    const profileResult = await postgresDatabase.query(
+      'SELECT api_key, username, role FROM public.users WHERE id = $1 LIMIT 1',
+      [authenticationData.user.id]
+    );
+
+    const userProfileRecord = profileResult.rows[0];
+    const assignedRole = userProfileRecord?.role || 'USER';
 
     return {
       accessToken: authenticationData.session.access_token,
@@ -62,7 +65,8 @@ export class AuthenticateUserUseCase {
       userId: authenticationData.user.id,
       username: userProfileRecord?.username || resolvedEmail,
       apiKey: userProfileRecord?.api_key || null,
-      privilege: userProfileRecord?.privilege || 'user'
+      role: assignedRole,
+      privilege: assignedRole.toLowerCase()
     };
   }
 }

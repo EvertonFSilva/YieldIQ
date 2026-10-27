@@ -1,19 +1,14 @@
 import crypto from 'crypto';
-import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
-import { ExternalServiceError } from '../../domain/errors/AppError';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 
 export class RegenerateApiKeyUseCase {
   public async execute(userId: string): Promise<string> {
     const newlyGeneratedApiKey = 'yieldiq_' + crypto.randomBytes(24).toString('hex');
 
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ api_key: newlyGeneratedApiKey })
-      .eq('id', userId);
-
-    if (updateError) {
-      throw new ExternalServiceError('Failed to regenerate user API key');
-    }
+    await postgresDatabase.query(
+      'UPDATE public.users SET api_key = $1, updated_at = NOW() WHERE id = $2',
+      [newlyGeneratedApiKey, userId]
+    );
 
     return newlyGeneratedApiKey;
   }

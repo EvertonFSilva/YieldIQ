@@ -1,4 +1,5 @@
-import { supabaseAdmin, supabaseClient } from '../../infrastructure/database/SupabaseClient';
+import { supabaseClient } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 import { ValidationError, ConflictError, UnauthorizedError, ExternalServiceError, NotFoundError } from '../../domain/errors/AppError';
 
 export class UpdateUserProfileUseCase {
@@ -8,25 +9,19 @@ export class UpdateUserProfileUseCase {
       throw new ValidationError('Username must contain at least 3 characters');
     }
 
-    const { data: existingUser } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .ilike('username', trimmedUsername)
-      .neq('id', userId)
-      .maybeSingle();
+    const existingUserResult = await postgresDatabase.query(
+      'SELECT id FROM public.users WHERE username ILIKE $1 AND id <> $2 LIMIT 1',
+      [trimmedUsername, userId]
+    );
 
-    if (existingUser) {
+    if (existingUserResult.rows.length > 0) {
       throw new ConflictError('Username is already taken by another account');
     }
 
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ username: trimmedUsername })
-      .eq('id', userId);
-
-    if (updateError) {
-      throw new ExternalServiceError('Failed to update username');
-    }
+    await postgresDatabase.query(
+      'UPDATE public.users SET username = $1, updated_at = NOW() WHERE id = $2',
+      [trimmedUsername, userId]
+    );
 
     return trimmedUsername;
   }
@@ -38,27 +33,19 @@ export class UpdateUserProfileUseCase {
       throw new ValidationError('Invalid phone number format provided');
     }
 
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ phone_number: sanitizedPhoneNumber || null })
-      .eq('id', userId);
-
-    if (updateError) {
-      throw new ExternalServiceError('Failed to update phone number');
-    }
+    await postgresDatabase.query(
+      'UPDATE public.users SET phone_number = $1, updated_at = NOW() WHERE id = $2',
+      [sanitizedPhoneNumber || null, userId]
+    );
 
     return sanitizedPhoneNumber;
   }
 
   public async updateWhatsAppPreference(userId: string, isEnabled: boolean): Promise<boolean> {
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ is_whatsapp_enabled: Boolean(isEnabled) })
-      .eq('id', userId);
-
-    if (updateError) {
-      throw new ExternalServiceError('Failed to update WhatsApp notification preference');
-    }
+    await postgresDatabase.query(
+      'UPDATE public.users SET is_whatsapp_enabled = $1, updated_at = NOW() WHERE id = $2',
+      [Boolean(isEnabled), userId]
+    );
 
     return Boolean(isEnabled);
   }
@@ -76,19 +63,18 @@ export class UpdateUserProfileUseCase {
       throw new ValidationError('New password must contain at least 6 characters');
     }
 
-    const { data: userProfileRecord } = await supabaseAdmin
-      .from('users')
-      .select('email')
-      .eq('id', userId)
-      .maybeSingle();
+    const userProfileResult = await postgresDatabase.query(
+      'SELECT email FROM public.users WHERE id = $1 LIMIT 1',
+      [userId]
+    );
 
-    if (!userProfileRecord || !userProfileRecord.email) {
+    if (userProfileResult.rows.length === 0 || !userProfileResult.rows[0].email) {
       throw new NotFoundError('User email could not be located');
     }
 
     const { data: authenticationData, error: authenticationError } =
       await supabaseClient.auth.signInWithPassword({
-        email: userProfileRecord.email,
+        email: userProfileResult.rows[0].email,
         password: currentPassword
       });
 

@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { whatsAppService } from '../../infrastructure/notifications/WhatsAppNotificationService';
 import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
+import { SyncAssetsUseCase } from '../../application/usecases/SyncAssetsUseCase';
 import { ForbiddenError, ValidationError, NotFoundError } from '../../domain/errors/AppError';
 
 export class AdminController {
@@ -85,19 +87,18 @@ export class AdminController {
   ): Promise<void> => {
     try {
       this.ensureAdminPrivilege(request);
-      const { data: records, error } = await supabaseAdmin
-        .from('alert_rules')
-        .select('*')
-        .eq('channel_type', 'GROUP')
-        .order('created_at', { ascending: false });
+      const queryResult = await postgresDatabase.query(
+        `SELECT id, destination, target_symbol, settings, is_active, created_at
+         FROM public.alert_rules
+         WHERE channel_type = 'GROUP'
+         ORDER BY created_at DESC`
+      );
 
-      if (error) {
-        throw error;
-      }
+      const records = queryResult.rows || [];
 
       response.json({
         success: true,
-        data: (records || []).map((r) => {
+        data: records.map((r: any) => {
           const settings = r.settings || {};
           return {
             id: r.id,
@@ -140,25 +141,23 @@ export class AdminController {
       const cleanTicker = ticker.toUpperCase().trim();
       const cleanGroup = group_name.trim();
 
-      const { data: assetData } = await supabaseAdmin
-        .from('assets')
-        .select('id')
-        .eq('ticker', cleanTicker)
-        .maybeSingle();
+      const assetCheckResult = await postgresDatabase.query(
+        'SELECT id FROM public.assets WHERE ticker = $1 LIMIT 1',
+        [cleanTicker]
+      );
 
-      if (!assetData) {
+      if (assetCheckResult.rows.length === 0) {
         throw new NotFoundError(`Asset with ticker ${ticker} not found`);
       }
 
-      const { data: existingRecord } = await supabaseAdmin
-        .from('alert_rules')
-        .select('id')
-        .eq('channel_type', 'GROUP')
-        .eq('destination', cleanGroup)
-        .eq('target_symbol', cleanTicker)
-        .maybeSingle();
+      const existingRecordResult = await postgresDatabase.query(
+        `SELECT id FROM public.alert_rules
+         WHERE channel_type = 'GROUP' AND destination = $1 AND target_symbol = $2
+         LIMIT 1`,
+        [cleanGroup, cleanTicker]
+      );
 
-      if (existingRecord) {
+      if (existingRecordResult.rows.length > 0) {
         throw new ValidationError('Alert rule for this asset and group already exists');
       }
 
@@ -171,28 +170,16 @@ export class AdminController {
         notify_documents: Boolean(is_notify_material_fact || is_notify_report)
       };
 
-      const { data: insertedRecord, error: insertError } = await supabaseAdmin
-        .from('alert_rules')
-        .insert({
-          channel_type: 'GROUP',
-          destination: cleanGroup,
-          target_type: 'ASSET',
-          target_symbol: cleanTicker,
-          settings,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
+      const insertResult = await postgresDatabase.query(
+        `INSERT INTO public.alert_rules (channel_type, destination, target_type, target_symbol, settings, is_active, created_at, updated_at)
+         VALUES ('GROUP', $1, 'ASSET', $2, $3::jsonb, true, NOW(), NOW())
+         RETURNING *`,
+        [cleanGroup, cleanTicker, JSON.stringify(settings)]
+      );
 
       response.status(201).json({
         success: true,
-        data: insertedRecord
+        data: insertResult.rows[0]
       });
     } catch (error) {
       nextStep(error);
@@ -208,15 +195,10 @@ export class AdminController {
       this.ensureAdminPrivilege(request);
       const ruleIdentifier = request.params.id;
 
-      const { error } = await supabaseAdmin
-        .from('alert_rules')
-        .delete()
-        .eq('id', ruleIdentifier)
-        .eq('channel_type', 'GROUP');
-
-      if (error) {
-        throw error;
-      }
+      await postgresDatabase.query(
+        "DELETE FROM public.alert_rules WHERE id = $1 AND channel_type = 'GROUP'",
+        [ruleIdentifier]
+      );
 
       response.json({
         success: true,
@@ -234,18 +216,15 @@ export class AdminController {
   ): Promise<void> => {
     try {
       this.ensureAdminPrivilege(request);
-      const { data: users, error } = await supabaseAdmin
-        .from('users')
-        .select('id, username, email, phone_number, role, alert_quota, created_at')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
+      const usersResult = await postgresDatabase.query(
+        `SELECT id, username, email, phone_number, role, alert_quota, created_at
+         FROM public.users
+         ORDER BY created_at DESC`
+      );
 
       response.json({
         success: true,
-        data: users || []
+        data: usersResult.rows || []
       });
     } catch (error) {
       nextStep(error);
@@ -262,26 +241,47 @@ export class AdminController {
       const targetUserId = request.params.id;
       const { role, alertQuota, privilege, ruleLimit } = request.body;
 
-      const updatePayload: Record<string, any> = {};
-      if (role || privilege) {
-        updatePayload.role = role || privilege;
-      }
-      if (alertQuota !== undefined || ruleLimit !== undefined) {
-        updatePayload.alert_quota = alertQuota ?? ruleLimit;
-      }
+      const targetRole = role || (privilege ? privilege.toUpperCase() : undefined);
+      const targetQuota = alertQuota ?? ruleLimit;
 
-      const { error } = await supabaseAdmin
-        .from('users')
-        .update(updatePayload)
-        .eq('id', targetUserId);
-
-      if (error) {
-        throw error;
+      if (targetRole && targetQuota !== undefined) {
+        await postgresDatabase.query(
+          'UPDATE public.users SET role = $1, alert_quota = $2, updated_at = NOW() WHERE id = $3',
+          [targetRole, targetQuota, targetUserId]
+        );
+      } else if (targetRole) {
+        await postgresDatabase.query(
+          'UPDATE public.users SET role = $1, updated_at = NOW() WHERE id = $2',
+          [targetRole, targetUserId]
+        );
+      } else if (targetQuota !== undefined) {
+        await postgresDatabase.query(
+          'UPDATE public.users SET alert_quota = $1, updated_at = NOW() WHERE id = $2',
+          [targetQuota, targetUserId]
+        );
       }
 
       response.json({
         success: true,
         data: { message: 'User updated successfully' }
+      });
+    } catch (error) {
+      nextStep(error);
+    }
+  };
+
+  public syncAssets = async (
+    request: Request,
+    response: Response,
+    nextStep: NextFunction
+  ): Promise<void> => {
+    try {
+      this.ensureAdminPrivilege(request);
+      const syncUseCase = new SyncAssetsUseCase();
+      const syncResult = await syncUseCase.execute();
+      response.json({
+        success: true,
+        data: syncResult
       });
     } catch (error) {
       nextStep(error);

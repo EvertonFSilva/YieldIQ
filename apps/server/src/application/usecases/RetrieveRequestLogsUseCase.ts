@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 
 export interface RequestLogsSummary {
   period: string;
@@ -26,13 +26,14 @@ export class RetrieveRequestLogsUseCase {
         break;
     }
 
-    const { data: logRecords } = await supabaseAdmin
-      .from('request_logs')
-      .select('endpoint, method, duration_ms')
-      .eq('user_id', userId)
-      .gte('created_at', calculatedSinceDate.toISOString());
+    const logRecordsResult = await postgresDatabase.query(
+      `SELECT endpoint, method, duration_ms
+       FROM public.request_logs
+       WHERE user_id = $1 AND created_at >= $2`,
+      [userId, calculatedSinceDate.toISOString()]
+    );
 
-    const records = logRecords || [];
+    const records = logRecordsResult.rows || [];
     const requestsByEndpoint: Record<string, number> = {};
     const requestsByMethod: Record<string, number> = {};
     let totalDuration = 0;

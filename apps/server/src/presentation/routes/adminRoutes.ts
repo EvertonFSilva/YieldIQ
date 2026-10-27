@@ -15,5 +15,6 @@ router.delete('/group-alerts/:id', authenticateRequest, adminController.deleteGr
 
 router.get('/users', authenticateRequest, adminController.listUsers);
 router.patch('/users/:id', authenticateRequest, adminController.updateUserPrivileges);
+router.post('/sync-assets', authenticateRequest, adminController.syncAssets);
 
 export const adminRoutes = router;

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
+import { supabaseClient } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 import { ValidationError, ConflictError, ExternalServiceError } from '../../domain/errors/AppError';
 
 export interface RegisterUserCommand {
@@ -38,31 +39,34 @@ export class RegisterUserUseCase {
       throw new ValidationError('Provided email format is invalid');
     }
 
-    const { data: existingUserRecord } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .ilike('username', trimmedUsername)
-      .maybeSingle();
+    const existingUsernameResult = await postgresDatabase.query(
+      'SELECT id FROM public.users WHERE username ILIKE $1 LIMIT 1',
+      [trimmedUsername]
+    );
 
-    if (existingUserRecord) {
+    if (existingUsernameResult.rows.length > 0) {
       throw new ConflictError('Username is already taken');
     }
 
-    const { data: existingEmailRecord } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .ilike('email', trimmedEmail)
-      .maybeSingle();
+    const existingEmailResult = await postgresDatabase.query(
+      'SELECT id FROM public.users WHERE email ILIKE $1 LIMIT 1',
+      [trimmedEmail]
+    );
 
-    if (existingEmailRecord) {
+    if (existingEmailResult.rows.length > 0) {
       throw new ConflictError('Email is already registered');
     }
 
     const { data: authenticationResult, error: authenticationError } =
-      await supabaseAdmin.auth.admin.createUser({
+      await supabaseClient.auth.signUp({
         email: trimmedEmail,
         password: providedPassword,
-        email_confirm: true
+        options: {
+          data: {
+            username: trimmedUsername,
+            role: 'USER'
+          }
+        }
       });
 
     if (authenticationError || !authenticationResult.user) {
@@ -71,23 +75,26 @@ export class RegisterUserUseCase {
       );
     }
 
+    const userId = authenticationResult.user.id;
+    await postgresDatabase.query(
+      'UPDATE auth.users SET email_confirmed_at = NOW() WHERE id = $1',
+      [userId]
+    );
+
     const generatedApiKey = 'yieldiq_' + crypto.randomBytes(24).toString('hex');
-    const creationTimestamp = new Date().toISOString();
 
-    const { error: profileInsertionError } = await supabaseAdmin.from('users').insert({
-      id: authenticationResult.user.id,
-      username: trimmedUsername,
-      email: trimmedEmail,
-      api_key: generatedApiKey,
-      created_at: creationTimestamp
-    });
-
-    if (profileInsertionError) {
-      throw new ExternalServiceError('Failed to initialize user profile record');
-    }
+    await postgresDatabase.query(
+      `INSERT INTO public.users (id, username, email, api_key, role, alert_quota, is_whatsapp_enabled, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'USER', 20, true, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         username = EXCLUDED.username,
+         email = EXCLUDED.email,
+         api_key = EXCLUDED.api_key`,
+      [userId, trimmedUsername, trimmedEmail, generatedApiKey]
+    );
 
     return {
-      id: authenticationResult.user.id,
+      id: userId,
       username: trimmedUsername,
       email: trimmedEmail,
       apiKey: generatedApiKey

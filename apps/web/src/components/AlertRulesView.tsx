@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, CheckCircle2, XCircle, Send, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, XCircle, Send, RefreshCw, Smartphone, ArrowRight, ShieldCheck, Bell } from 'lucide-react';
 import { alertService } from '../services/apiClient';
 import { AlertRuleItem } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export const AlertRulesView: React.FC = () => {
+  const { currentUser, openAuthModal } = useAuth();
   const [rulesList, setRulesList] = useState<AlertRuleItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSendingTestAlert, setIsSendingTestAlert] = useState<boolean>(false);
@@ -18,6 +20,10 @@ export const AlertRulesView: React.FC = () => {
   const [notifyReport, setNotifyReport] = useState<boolean>(true);
 
   const fetchRules = () => {
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     alertService
       .retrieveRules()
@@ -33,7 +39,83 @@ export const AlertRulesView: React.FC = () => {
 
   useEffect(() => {
     fetchRules();
-  }, []);
+  }, [currentUser]);
+
+  if (!currentUser) {
+    return (
+      <div className="space-y-8 animate-fadeIn">
+        <div className="rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/50 to-slate-950 p-8 sm:p-12 text-center max-w-3xl mx-auto space-y-6">
+          <div className="mx-auto inline-flex rounded-2xl bg-emerald-500/10 p-4 text-emerald-400 border border-emerald-500/20">
+            <Smartphone className="h-10 w-10" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
+              Alertas no WhatsApp Exclusivos para Usuários
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
+              Receba notificações instantâneas no seu celular sempre que um fundo anunciar dividendos, publicar fatos relevantes na CVM ou atingir seus limites de preço.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left pt-2">
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1.5">
+              <span className="text-xs font-bold text-emerald-400 block">Proventos na Data Com</span>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Aviso em minutos após a publicação oficial do valor por cota e data de pagamento.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1.5">
+              <span className="text-xs font-bold text-teal-400 block">Fatos Relevantes CVM</span>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Resumo e link oficial para relatórios gerenciais e comunicados do gestor.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1.5">
+              <span className="text-xs font-bold text-amber-400 block">Preço Mínimo & Variação</span>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Disparos inteligentes quando a cotação cruzar seus alvos ou oscilar além do degrau.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 text-left max-w-md mx-auto">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-2">
+              <Bell className="h-4 w-4 text-emerald-400" />
+              <span>Exemplo de mensagem recebida:</span>
+            </div>
+            <div className="font-mono text-[11px] text-slate-200 bg-slate-900 rounded-xl p-3 border border-slate-800 leading-relaxed">
+              🔔 <span className="font-bold text-emerald-400">[YieldIQ] Provento Anunciado: HGLG11</span><br />
+              &bull; Rendimento: R$ 1,10 / cota<br />
+              &bull; Data Com: 15/10/2026<br />
+              &bull; Pagamento: 22/10/2026<br />
+              &bull; DY Mensal: 0,68%
+            </div>
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => openAuthModal('login')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-xs font-bold text-slate-950 hover:brightness-110 transition shadow-lg shadow-emerald-500/20"
+            >
+              <span>Entrar na Minha Conta</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={() => openAuthModal('register')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-6 py-3.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span>Criar Conta Gratuita</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreateRule = async (event: React.FormEvent) => {
     event.preventDefault();

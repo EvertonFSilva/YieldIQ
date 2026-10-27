@@ -92,3 +92,44 @@ export interface UserAccountProfile {
   alertQuota?: number;
   ruleLimit: number;
 }
+
+export interface WhatsAppStatusData {
+  isConnected: boolean;
+  isConnecting: boolean;
+  qrCodeDataUrl: string | null;
+  phoneNumber: string | null;
+  pushName: string | null;
+}
+
+export interface WhatsAppGroupItem {
+  id: string;
+  name: string;
+}
+
+export interface GroupAlertItem {
+  id: string;
+  group_name: string;
+  ticker: string;
+  alert_variation_pct: number | null;
+  is_notify_dividend: boolean;
+  is_notify_material_fact: boolean;
+  is_notify_report: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminUserItem {
+  id: string;
+  username: string;
+  email: string;
+  phone_number: string | null;
+  role: string;
+  alert_quota: number;
+  created_at: string;
+}
+
+export interface AuthSession {
+  user: UserAccountProfile;
+  accessToken: string;
+  apiKey: string | null;
+}

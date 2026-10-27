@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from '../../domain/errors/AppError';
-import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
-import { environment } from '../../config/env';
+import { supabaseClient } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 
 export interface AuthenticatedUserPayload {
   id: string;
@@ -30,13 +29,13 @@ export async function authenticateRequest(
 
   if (providedApiToken) {
     try {
-      const { data: userRecord } = await supabaseAdmin
-        .from('users')
-        .select('id, email, role')
-        .eq('api_key', providedApiToken)
-        .maybeSingle();
+      const userLookupResult = await postgresDatabase.query(
+        'SELECT id, email, role FROM public.users WHERE api_key = $1 LIMIT 1',
+        [providedApiToken]
+      );
 
-      if (userRecord) {
+      if (userLookupResult.rows.length > 0) {
+        const userRecord = userLookupResult.rows[0];
         request.user = {
           id: userRecord.id,
           email: userRecord.email,
@@ -44,17 +43,13 @@ export async function authenticateRequest(
         };
 
         const targetEndpoint = request.baseUrl + request.path;
-        supabaseAdmin
-          .from('request_logs')
-          .insert({
-            user_id: userRecord.id,
-            endpoint: targetEndpoint,
-            method: request.method,
-            status_code: 200,
-            duration_ms: 1,
-            created_at: new Date().toISOString()
-          })
-          .then(undefined, () => {});
+        postgresDatabase
+          .query(
+            `INSERT INTO public.request_logs (user_id, endpoint, method, status_code, duration_ms, created_at)
+             VALUES ($1, $2, $3, 200, 1, NOW())`,
+            [userRecord.id, targetEndpoint, request.method]
+          )
+          .catch(() => {});
 
         return nextFunction();
       }
@@ -63,16 +58,24 @@ export async function authenticateRequest(
   }
 
   if (authorizationHeader.startsWith('Bearer ')) {
-    const bearerToken = authorizationHeader.substring(7);
+    const bearerToken = authorizationHeader.substring(7).trim();
     try {
-      const decodedPayload = jwt.verify(bearerToken, environment.JWT_SECRET) as any;
-      if (decodedPayload && decodedPayload.sub) {
-        request.user = {
-          id: decodedPayload.sub,
-          email: decodedPayload.email,
-          role: decodedPayload.user_metadata?.role
-        };
-        return nextFunction();
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser(bearerToken);
+      if (!userError && userData?.user) {
+        const userLookupResult = await postgresDatabase.query(
+          'SELECT id, email, role FROM public.users WHERE id = $1 LIMIT 1',
+          [userData.user.id]
+        );
+
+        if (userLookupResult.rows.length > 0) {
+          const userRecord = userLookupResult.rows[0];
+          request.user = {
+            id: userRecord.id,
+            email: userRecord.email,
+            role: userRecord.role
+          };
+          return nextFunction();
+        }
       }
     } catch {
     }
@@ -95,13 +98,13 @@ export async function optionalAuthenticateRequest(
 
   if (providedApiToken) {
     try {
-      const { data: userRecord } = await supabaseAdmin
-        .from('users')
-        .select('id, email, role')
-        .eq('api_key', providedApiToken)
-        .maybeSingle();
+      const userLookupResult = await postgresDatabase.query(
+        'SELECT id, email, role FROM public.users WHERE api_key = $1 LIMIT 1',
+        [providedApiToken]
+      );
 
-      if (userRecord) {
+      if (userLookupResult.rows.length > 0) {
+        const userRecord = userLookupResult.rows[0];
         request.user = {
           id: userRecord.id,
           email: userRecord.email,
@@ -113,15 +116,23 @@ export async function optionalAuthenticateRequest(
   }
 
   if (authorizationHeader.startsWith('Bearer ')) {
-    const bearerToken = authorizationHeader.substring(7);
+    const bearerToken = authorizationHeader.substring(7).trim();
     try {
-      const decodedPayload = jwt.verify(bearerToken, environment.JWT_SECRET) as any;
-      if (decodedPayload && decodedPayload.sub) {
-        request.user = {
-          id: decodedPayload.sub,
-          email: decodedPayload.email,
-          role: decodedPayload.user_metadata?.role
-        };
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser(bearerToken);
+      if (!userError && userData?.user) {
+        const userLookupResult = await postgresDatabase.query(
+          'SELECT id, email, role FROM public.users WHERE id = $1 LIMIT 1',
+          [userData.user.id]
+        );
+
+        if (userLookupResult.rows.length > 0) {
+          const userRecord = userLookupResult.rows[0];
+          request.user = {
+            id: userRecord.id,
+            email: userRecord.email,
+            role: userRecord.role
+          };
+        }
       }
     } catch {
     }

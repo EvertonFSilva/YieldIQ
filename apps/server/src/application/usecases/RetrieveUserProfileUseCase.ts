@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
+import { postgresDatabase } from '../../infrastructure/database/PostgresDatabaseClient';
 import { NotFoundError } from '../../domain/errors/AppError';
 
 export interface UserProfileResult {
@@ -18,23 +18,24 @@ export interface UserProfileResult {
 
 export class RetrieveUserProfileUseCase {
   public async execute(userId: string): Promise<UserProfileResult> {
-    const { data: userProfileRecord, error: retrievalError } = await supabaseAdmin
-      .from('users')
-      .select('id, username, email, created_at, api_key, phone_number, is_whatsapp_enabled, role, alert_quota')
-      .eq('id', userId)
-      .maybeSingle();
+    const userResult = await postgresDatabase.query(
+      `SELECT id, username, email, created_at, api_key, phone_number, is_whatsapp_enabled, role, alert_quota
+       FROM public.users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
 
-    if (retrievalError || !userProfileRecord) {
+    if (userResult.rows.length === 0) {
       throw new NotFoundError('User profile was not found');
     }
 
+    const userProfileRecord = userResult.rows[0];
     let activeApiKey = userProfileRecord.api_key;
     if (!activeApiKey) {
       activeApiKey = 'yieldiq_' + crypto.randomBytes(24).toString('hex');
-      await supabaseAdmin
-        .from('users')
-        .update({ api_key: activeApiKey })
-        .eq('id', userId);
+      await postgresDatabase.query(
+        'UPDATE public.users SET api_key = $1, updated_at = NOW() WHERE id = $2',
+        [activeApiKey, userId]
+      );
     }
 
     const assignedRole = userProfileRecord.role || 'USER';
