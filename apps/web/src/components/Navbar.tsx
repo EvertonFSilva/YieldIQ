@@ -1,5 +1,6 @@
 import React from 'react';
 import { Activity, Bell, Compass, Landmark, User } from 'lucide-react';
+import { Logo } from './Logo';
 
 export type ActiveNavigationTab = 'assets' | 'treasury' | 'alerts' | 'profile';
 
@@ -17,17 +18,7 @@ export const Navbar: React.FC<NavbarProperties> = ({
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 font-bold text-slate-950 shadow-lg shadow-emerald-500/20">
-            YQ
-          </div>
-          <div>
-            <span className="text-lg font-bold tracking-tight text-white">YieldIQ</span>
-            <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
-              v2.0
-            </span>
-          </div>
-        </div>
+        <Logo size={38} showWordmark={true} />
 
         <nav className="flex items-center gap-1 sm:gap-2">
           <button

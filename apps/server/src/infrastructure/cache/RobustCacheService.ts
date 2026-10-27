@@ -11,6 +11,7 @@ export class RobustCacheService implements ICacheService {
   private readonly inFlightComputations = new Map<string, Promise<any>>();
   private readonly maximumEntriesCount: number;
   private readonly defaultTimeToLiveMilliseconds: number;
+  private periodicSweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     maximumEntriesCount: number = 3000,
@@ -18,6 +19,25 @@ export class RobustCacheService implements ICacheService {
   ) {
     this.maximumEntriesCount = maximumEntriesCount;
     this.defaultTimeToLiveMilliseconds = defaultTimeToLiveMilliseconds;
+    this.startPeriodicExpirationSweep();
+  }
+
+  private startPeriodicExpirationSweep(): void {
+    if (this.periodicSweepTimer) {
+      clearInterval(this.periodicSweepTimer);
+    }
+    this.periodicSweepTimer = setInterval(() => {
+      this.sweepExpiredEntries();
+    }, 10 * 60 * 1000);
+  }
+
+  private sweepExpiredEntries(): void {
+    const currentTimestamp = Date.now();
+    for (const [key, record] of this.memoryStorage.entries()) {
+      if (record.expirationTimestamp <= currentTimestamp) {
+        this.memoryStorage.delete(key);
+      }
+    }
   }
 
   public async get<T>(cacheKey: string): Promise<T | null> {
@@ -87,7 +107,8 @@ export class RobustCacheService implements ICacheService {
 
     try {
       await supabaseAdmin.from('cache').delete().eq('key', cacheKey);
-    } catch {}
+    } catch {
+    }
   }
 
   public async clear(searchPattern?: string): Promise<void> {
@@ -99,13 +120,15 @@ export class RobustCacheService implements ICacheService {
       }
       try {
         await supabaseAdmin.from('cache').delete().like('key', `%${searchPattern}%`);
-      } catch {}
+      } catch {
+      }
     } else {
       this.memoryStorage.clear();
       this.inFlightComputations.clear();
       try {
         await supabaseAdmin.from('cache').delete().neq('key', '');
-      } catch {}
+      } catch {
+      }
     }
   }
 
@@ -193,10 +216,28 @@ export class RobustCacheService implements ICacheService {
       return;
     }
 
-    const oldestStoredKey = this.memoryStorage.keys().next().value;
-    if (oldestStoredKey) {
-      this.memoryStorage.delete(oldestStoredKey);
+    this.sweepExpiredEntries();
+
+    if (this.memoryStorage.size >= this.maximumEntriesCount) {
+      const itemsToEvictCount = Math.max(1, Math.floor(this.maximumEntriesCount * 0.1));
+      let evictedCount = 0;
+      for (const oldestKey of this.memoryStorage.keys()) {
+        this.memoryStorage.delete(oldestKey);
+        evictedCount++;
+        if (evictedCount >= itemsToEvictCount) {
+          break;
+        }
+      }
     }
+  }
+
+  public destroy(): void {
+    if (this.periodicSweepTimer) {
+      clearInterval(this.periodicSweepTimer);
+      this.periodicSweepTimer = null;
+    }
+    this.memoryStorage.clear();
+    this.inFlightComputations.clear();
   }
 }
 
