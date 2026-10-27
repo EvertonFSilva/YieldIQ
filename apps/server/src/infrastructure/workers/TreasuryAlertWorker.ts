@@ -48,14 +48,17 @@ export class TreasuryAlertWorker {
       }
 
       const activeRules: ActiveTreasuryRule[] = records
-        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
-        .map((r) => ({
-          id: String(r.id),
-          userId: r.user_id || undefined,
-          destination: r.channel_destination,
-          bondName: r.target_symbol.trim(),
-          variationPercentageThreshold: r.variation_step_percent
-        }));
+        .filter((r) => Boolean(r.destination && r.target_symbol))
+        .map((r) => {
+          const settings = r.settings || {};
+          return {
+            id: String(r.id),
+            userId: r.user_id || undefined,
+            destination: r.destination,
+            bondName: r.target_symbol.trim(),
+            variationPercentageThreshold: settings.variation_step != null ? Number(settings.variation_step) : null
+          };
+        });
 
       if (activeRules.length === 0) {
         return;
@@ -100,19 +103,14 @@ export class TreasuryAlertWorker {
               if (!notifiedLevels.has(integerLevel)) {
                 notifiedLevels.add(integerLevel);
 
-                const unitPriceFormatted = bondItem.unitPrice ? bondItem.unitPrice.formatBrazilianReal() : 'N/A';
-                const treasuryMessage =
-                  `🏛️ *ALERTA DO TESOURO DIRETO*\n\n` +
-                  `📌 Título: *${bondItem.bondName}*\n` +
-                  `📊 Rentabilidade: *${bondItem.profitabilityRateRaw}*\n` +
-                  `💵 Preço Unitário: *${unitPriceFormatted}*\n` +
+                const directionArrow = rate >= 0 ? '🟢 ↗️' : '🔴 ↘️';
+                const message =
+                  `🏛️ *ALERTA DE TAXA - ${bondItem.bondName}*\n\n` +
+                  `${directionArrow} A rentabilidade do título atingiu *${bondItem.rateDescription}* ao ano!\n` +
+                  `💵 Preço Unitário: *${bondItem.unitPrice ? `R$ ${bondItem.unitPrice.getAmount().toFixed(2)}` : 'Indisponível'}*\n` +
                   `⏱️ Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
 
-                const wasSent = await whatsAppService.sendMessage(
-                  rule.destination,
-                  treasuryMessage,
-                  rule.userId
-                );
+                const wasSent = await whatsAppService.sendMessage(rule.destination, message, rule.userId);
 
                 if (wasSent) {
                   supabaseAdmin
@@ -120,10 +118,15 @@ export class TreasuryAlertWorker {
                     .insert({
                       rule_id: rule.id,
                       user_id: rule.userId,
-                      channel_destination: rule.destination,
+                      destination: rule.destination,
                       target_symbol: bondItem.bondName,
-                      alert_type: 'TREASURY_VARIATION',
-                      message: treasuryMessage,
+                      alert_type: 'PRICE_VARIATION',
+                      message: message,
+                      payload: {
+                        rate: bondItem.profitabilityRate,
+                        rate_description: bondItem.rateDescription,
+                        unit_price: bondItem.unitPrice?.getAmount()
+                      },
                       sent_at: new Date().toISOString()
                     })
                     .then(undefined, () => {});

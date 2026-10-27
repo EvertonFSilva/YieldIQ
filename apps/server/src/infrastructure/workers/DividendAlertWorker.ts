@@ -40,7 +40,6 @@ export class DividendAlertWorker {
         .from('alert_rules')
         .select('*')
         .eq('is_active', true)
-        .eq('notify_dividend', true)
         .eq('target_type', 'ASSET');
 
       if (error || !records || records.length === 0) {
@@ -48,11 +47,14 @@ export class DividendAlertWorker {
       }
 
       const activeRules: ActiveDividendRule[] = records
-        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .filter((r) => {
+          const settings = r.settings || {};
+          return Boolean(r.destination && r.target_symbol && settings.notify_dividends !== false);
+        })
         .map((r) => ({
           id: r.id,
           userId: r.user_id || undefined,
-          destination: r.channel_destination,
+          destination: r.destination,
           ticker: r.target_symbol
         }));
 
@@ -71,22 +73,19 @@ export class DividendAlertWorker {
           }
 
           const mostRecentDividend = recentDividends[0];
-          const dividendApprovedDate = mostRecentDividend.baseRecordDate || '';
+          const dividendIdentifier = `${tickerSymbol}:${mostRecentDividend.baseRecordDate}:${mostRecentDividend.paymentValuePerShare.getAmount()}`;
 
-          const isRecentAnnouncement = dividendApprovedDate >= todayDateString;
-          const dividendUniqueKey = `${tickerSymbol}:${dividendApprovedDate}:${mostRecentDividend.value.getCentsAmount()}`;
-
-          if (this.alertedDividends.has(dividendUniqueKey)) {
+          if (this.alertedDividends.has(dividendIdentifier)) {
             continue;
           }
 
-          if (isRecentAnnouncement) {
-            this.alertedDividends.add(dividendUniqueKey);
+          if (mostRecentDividend.baseRecordDate === todayDateString) {
+            this.alertedDividends.add(dividendIdentifier);
 
             const dividendMessage =
-              `💰 *NOVO PROVENTO ANUNCIADO - ${tickerSymbol}*\n\n` +
-              `💵 Valor por Cota: *${mostRecentDividend.value.formatBrazilianReal()}*\n` +
-              `📅 Data Com: *${mostRecentDividend.baseRecordDate}*\n` +
+              `💰 *NOVO DIVIDENDO ANUNCIADO - ${tickerSymbol}*\n\n` +
+              `💵 Valor por Cota: *R$ ${mostRecentDividend.paymentValuePerShare.getAmount().toFixed(4)}*\n` +
+              `📅 Data-Com: *${mostRecentDividend.baseRecordDate}*\n` +
               `💳 Previsão de Pagamento: *${mostRecentDividend.paymentDistributionDate || 'A definir'}*\n` +
               `⏱️ Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
 
@@ -106,10 +105,15 @@ export class DividendAlertWorker {
                   .insert({
                     rule_id: rule.id,
                     user_id: rule.userId,
-                    channel_destination: destination,
+                    destination: destination,
                     target_symbol: tickerSymbol,
-                    alert_type: 'DIVIDEND',
+                    alert_type: 'DIVIDEND_ANNOUNCEMENT',
                     message: dividendMessage,
+                    payload: {
+                      rate_per_share: mostRecentDividend.paymentValuePerShare.getAmount(),
+                      base_date: mostRecentDividend.baseRecordDate,
+                      payment_date: mostRecentDividend.paymentDistributionDate
+                    },
                     sent_at: new Date().toISOString()
                   })
                   .then(undefined, () => {});

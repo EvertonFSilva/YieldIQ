@@ -40,7 +40,7 @@ export class UpdateUserProfileUseCase {
 
     const { error: updateError } = await supabaseAdmin
       .from('users')
-      .update({ phone: sanitizedPhoneNumber || null })
+      .update({ phone_number: sanitizedPhoneNumber || null })
       .eq('id', userId);
 
     if (updateError) {

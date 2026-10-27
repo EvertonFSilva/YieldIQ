@@ -7,7 +7,7 @@ import { environment } from '../../config/env';
 export interface AuthenticatedUserPayload {
   id: string;
   email?: string;
-  privilege?: string;
+  role?: string;
 }
 
 declare global {
@@ -32,7 +32,7 @@ export async function authenticateRequest(
     try {
       const { data: userRecord } = await supabaseAdmin
         .from('users')
-        .select('id, email, privilege')
+        .select('id, email, role')
         .eq('api_key', providedApiToken)
         .maybeSingle();
 
@@ -40,16 +40,18 @@ export async function authenticateRequest(
         request.user = {
           id: userRecord.id,
           email: userRecord.email,
-          privilege: userRecord.privilege
+          role: userRecord.role
         };
 
         const targetEndpoint = request.baseUrl + request.path;
         supabaseAdmin
-          .from('api_telemetry')
+          .from('request_logs')
           .insert({
             user_id: userRecord.id,
             endpoint: targetEndpoint,
             method: request.method,
+            status_code: 200,
+            duration_ms: 1,
             created_at: new Date().toISOString()
           })
           .then(undefined, () => {});
@@ -68,7 +70,7 @@ export async function authenticateRequest(
         request.user = {
           id: decodedPayload.sub,
           email: decodedPayload.email,
-          privilege: decodedPayload.user_metadata?.privilege
+          role: decodedPayload.user_metadata?.role
         };
         return nextFunction();
       }

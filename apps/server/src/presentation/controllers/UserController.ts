@@ -4,7 +4,7 @@ import { AuthenticateUserUseCase } from '../../application/usecases/Authenticate
 import { RetrieveUserProfileUseCase } from '../../application/usecases/RetrieveUserProfileUseCase';
 import { UpdateUserProfileUseCase } from '../../application/usecases/UpdateUserProfileUseCase';
 import { RegenerateApiKeyUseCase } from '../../application/usecases/RegenerateApiKeyUseCase';
-import { RetrieveTelemetryUsageUseCase } from '../../application/usecases/RetrieveTelemetryUsageUseCase';
+import { RetrieveRequestLogsUseCase } from '../../application/usecases/RetrieveRequestLogsUseCase';
 import { UnauthorizedError } from '../../domain/errors/AppError';
 
 export class UserController {
@@ -13,7 +13,7 @@ export class UserController {
   private readonly retrieveUserProfileUseCase = new RetrieveUserProfileUseCase();
   private readonly updateUserProfileUseCase = new UpdateUserProfileUseCase();
   private readonly regenerateApiKeyUseCase = new RegenerateApiKeyUseCase();
-  private readonly retrieveTelemetryUsageUseCase = new RetrieveTelemetryUsageUseCase();
+  private readonly retrieveRequestLogsUseCase = new RetrieveRequestLogsUseCase();
 
   public register = async (
     request: Request,
@@ -189,7 +189,7 @@ export class UserController {
     }
   };
 
-  public retrieveTelemetryUsage = async (
+  public retrieveRequestLogs = async (
     request: Request,
     response: Response,
     nextStep: NextFunction
@@ -201,7 +201,7 @@ export class UserController {
       }
 
       const periodString = (request.query.period as string) || 'month';
-      const usageSummary = await this.retrieveTelemetryUsageUseCase.execute(currentUserId, periodString);
+      const usageSummary = await this.retrieveRequestLogsUseCase.execute(currentUserId, periodString);
 
       response.json({
         success: true,

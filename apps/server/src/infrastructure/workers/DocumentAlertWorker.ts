@@ -40,7 +40,6 @@ export class DocumentAlertWorker {
         .from('alert_rules')
         .select('*')
         .eq('is_active', true)
-        .eq('notify_document', true)
         .eq('target_type', 'ASSET');
 
       if (error || !records || records.length === 0) {
@@ -48,11 +47,14 @@ export class DocumentAlertWorker {
       }
 
       const activeRules: ActiveDocumentRule[] = records
-        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
+        .filter((r) => {
+          const settings = r.settings || {};
+          return Boolean(r.destination && r.target_symbol && settings.notify_documents !== false);
+        })
         .map((r) => ({
           id: r.id,
           userId: r.user_id || undefined,
-          destination: r.channel_destination,
+          destination: r.destination,
           ticker: r.target_symbol
         }));
 
@@ -65,28 +67,32 @@ export class DocumentAlertWorker {
 
       for (const tickerSymbol of uniqueTickers) {
         try {
-          const recentDocuments = await fnetDocumentProvider.fetchAssetDocuments(tickerSymbol, 'all', 5);
+          const recentDocuments = await fnetDocumentProvider.fetchAssetDocuments(tickerSymbol, 3);
           if (!recentDocuments || recentDocuments.length === 0) {
             continue;
           }
 
           for (const documentItem of recentDocuments) {
             const documentIdentifierString = String(documentItem.documentIdentifier);
-            const documentPublishedDate = documentItem.referenceDate || '';
-            const isToday = documentPublishedDate >= todayDateString;
+            const trackingKey = `${tickerSymbol}:${documentIdentifierString}`;
+
+            if (this.alertedDocumentIdentifiers.has(trackingKey)) {
+              continue;
+            }
+
+            const rawDocumentDate = documentItem.referenceDate || '';
+            const isToday =
+              rawDocumentDate.includes(todayDateString) ||
+              rawDocumentDate.split('/').reverse().join('-') === todayDateString;
 
             if (!isToday) {
               continue;
             }
 
-            if (this.alertedDocumentIdentifiers.has(documentIdentifierString)) {
-              continue;
-            }
-
-            this.alertedDocumentIdentifiers.add(documentIdentifierString);
+            this.alertedDocumentIdentifiers.add(trackingKey);
 
             const documentCategoryLower = (documentItem.documentCategoryName || '').toLowerCase();
-            const documentDescriptionLower = documentItem.documentDescription.toLowerCase();
+            const documentDescriptionLower = (documentItem.documentDescription || '').toLowerCase();
 
             const isMaterialFact =
               documentCategoryLower.includes('fato relevante') ||
@@ -140,11 +146,15 @@ export class DocumentAlertWorker {
                   .insert({
                     rule_id: rule.id,
                     user_id: rule.userId,
-                    channel_destination: destination,
+                    destination: destination,
                     target_symbol: tickerSymbol,
-                    alert_type: isMaterialFact ? 'MATERIAL_FACT' : isReport ? 'REPORT' : 'OFFERING',
+                    alert_type: 'DOCUMENT_DISCLOSURE',
                     message: documentMessage,
-                    document_url: documentItem.documentDownloadUrl,
+                    payload: {
+                      document_url: documentItem.documentDownloadUrl,
+                      document_category: categoryTitle,
+                      document_identifier: documentIdentifierString
+                    },
                     sent_at: new Date().toISOString()
                   })
                   .then(undefined, () => {});

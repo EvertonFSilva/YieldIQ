@@ -2,7 +2,8 @@ export interface AssetItem {
   id: string;
   ticker: string;
   name: string;
-  type: 'FII' | 'FIAGRO' | 'FI_INFRA';
+  type: 'FII' | 'FIAGRO' | 'FI_INFRA' | 'STOCK';
+  metadata?: Record<string, any>;
   taxpayerRegistrationNumber?: string | null;
   administratorName?: string | null;
   managementCompanyName?: string | null;
@@ -54,6 +55,7 @@ export interface TreasuryBondItem {
   bondName: string;
   indexerName: string | null;
   profitabilityRate: number;
+  rateDescription?: string;
   profitabilityRateRaw: string;
   unitPrice: number | null;
   minimumInvestmentAmount: number | null;
@@ -70,9 +72,9 @@ export interface AlertRuleItem {
   notifyDividend: boolean;
   notifyMaterialFact: boolean;
   notifyReport: boolean;
-  notifyPublicOffering: boolean;
-  alertGordonPrice: boolean;
-  alertTargetYield: number | null;
+  notifyPublicOffering?: boolean;
+  alertGordonPrice?: boolean;
+  alertTargetYield?: number | null;
   enabled: boolean;
   createdAt: string;
 }
@@ -85,6 +87,8 @@ export interface UserAccountProfile {
   apiKey: string;
   phoneNumber: string | null;
   isWhatsAppEnabled: boolean;
+  role?: string;
   privilege: string;
+  alertQuota?: number;
   ruleLimit: number;
 }

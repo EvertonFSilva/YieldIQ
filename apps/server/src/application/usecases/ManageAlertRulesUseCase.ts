@@ -32,16 +32,17 @@ export class ManageAlertRulesUseCase {
     }
 
     const mappedRules = (records || []).map((record) => {
+      const settings = record.settings || {};
       return {
         id: record.id,
         ticker: record.target_symbol,
-        alertPriceMin: record.price_target_min,
-        alertPriceMax: record.price_target_max,
-        alertPriceChangePct: record.variation_step_percent,
-        notifyPrice: Boolean(record.notify_price),
-        notifyDividend: Boolean(record.notify_dividend),
-        notifyMaterialFact: Boolean(record.notify_document),
-        notifyReport: Boolean(record.notify_document),
+        alertPriceMin: settings.price_min != null ? Number(settings.price_min) : null,
+        alertPriceMax: settings.price_max != null ? Number(settings.price_max) : null,
+        alertPriceChangePct: settings.variation_step != null ? Number(settings.variation_step) : null,
+        notifyPrice: settings.notify_price !== false,
+        notifyDividend: settings.notify_dividends !== false,
+        notifyMaterialFact: settings.notify_documents !== false,
+        notifyReport: settings.notify_documents !== false,
         enabled: Boolean(record.is_active),
         createdAt: record.created_at
       };
@@ -75,11 +76,11 @@ export class ManageAlertRulesUseCase {
 
     const { data: userProfile } = await supabaseAdmin
       .from('users')
-      .select('phone, privilege, rule_limit')
+      .select('phone_number, role, alert_quota')
       .eq('id', userId)
       .maybeSingle();
 
-    const destinationPhone = userProfile?.phone || '';
+    const destinationPhone = userProfile?.phone_number || '';
 
     const { data: existingRuleRecord } = await supabaseAdmin
       .from('alert_rules')
@@ -89,18 +90,22 @@ export class ManageAlertRulesUseCase {
       .eq('target_type', 'ASSET')
       .maybeSingle();
 
+    const settings = {
+      price_min: input.minimumTargetPrice ?? null,
+      price_max: input.maximumTargetPrice ?? null,
+      variation_step: variationThreshold ?? null,
+      notify_price: input.isPriceAlertEnabled !== undefined ? Boolean(input.isPriceAlertEnabled) : true,
+      notify_dividends: input.isDividendAlertEnabled !== undefined ? Boolean(input.isDividendAlertEnabled) : true,
+      notify_documents: Boolean(input.isMaterialFactAlertEnabled || input.isReportAlertEnabled)
+    };
+
     const payload = {
       user_id: userId,
       channel_type: 'USER',
-      channel_destination: destinationPhone,
+      destination: destinationPhone,
       target_type: 'ASSET',
       target_symbol: trimmedTicker,
-      price_target_min: input.minimumTargetPrice ?? null,
-      price_target_max: input.maximumTargetPrice ?? null,
-      variation_step_percent: variationThreshold ?? null,
-      notify_price: Boolean(input.isPriceAlertEnabled),
-      notify_dividend: Boolean(input.isDividendAlertEnabled),
-      notify_document: Boolean(input.isMaterialFactAlertEnabled || input.isReportAlertEnabled),
+      settings,
       is_active: input.isActive !== undefined ? Boolean(input.isActive) : true,
       updated_at: new Date().toISOString()
     };
@@ -118,13 +123,13 @@ export class ManageAlertRulesUseCase {
       return { id: existingRuleRecord.id, ticker: trimmedTicker };
     }
 
-    const maximumAllowedRules = userProfile?.rule_limit ?? 20;
+    const maximumAllowedRules = userProfile?.alert_quota ?? 20;
     const { count: currentRuleCount } = await supabaseAdmin
       .from('alert_rules')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId);
 
-    if (userProfile?.privilege !== 'admin' && (currentRuleCount || 0) >= maximumAllowedRules) {
+    if (userProfile?.role !== 'ADMINISTRATOR' && (currentRuleCount || 0) >= maximumAllowedRules) {
       throw new ForbiddenError(
         `Account alert limit of ${maximumAllowedRules} rules reached. Remove an existing rule to add a new one.`
       );
@@ -173,7 +178,7 @@ export class ManageAlertRulesUseCase {
   public async retrieveHistory(userId: string, maximumItems: number = 30): Promise<any[]> {
     const { data: records, error } = await supabaseAdmin
       .from('alert_logs')
-      .select('id, target_symbol, alert_type, message, sent_at')
+      .select('id, target_symbol, alert_type, message, payload, sent_at')
       .eq('user_id', userId)
       .order('sent_at', { ascending: false })
       .limit(maximumItems);
@@ -187,6 +192,7 @@ export class ManageAlertRulesUseCase {
       ticker: record.target_symbol,
       alertType: record.alert_type,
       message: record.message,
+      payload: record.payload || {},
       sentAt: record.sent_at
     }));
   }
@@ -194,7 +200,7 @@ export class ManageAlertRulesUseCase {
   public async retrieveTreasuryRules(userId: string): Promise<{ rules: any[]; bonds: string[] }> {
     const { data: records, error } = await supabaseAdmin
       .from('alert_rules')
-      .select('id, target_symbol, is_active, variation_step_percent')
+      .select('id, target_symbol, is_active, settings')
       .eq('user_id', userId)
       .eq('target_type', 'TREASURY');
 
@@ -203,12 +209,15 @@ export class ManageAlertRulesUseCase {
     }
 
     const mappedRules = (records || [])
-      .map((record) => ({
-        id: String(record.id),
-        name: record.target_symbol,
-        enabled: Boolean(record.is_active),
-        variation: record.variation_step_percent != null ? Number(record.variation_step_percent) : null
-      }))
+      .map((record) => {
+        const settings = record.settings || {};
+        return {
+          id: String(record.id),
+          name: record.target_symbol,
+          enabled: Boolean(record.is_active),
+          variation: settings.variation_step != null ? Number(settings.variation_step) : null
+        };
+      })
       .sort((firstRule, secondRule) => firstRule.name.localeCompare(secondRule.name));
 
     const enabledBondNames = mappedRules.filter((rule) => rule.enabled).map((rule) => rule.name);
@@ -251,11 +260,11 @@ export class ManageAlertRulesUseCase {
 
     const { data: userProfile } = await supabaseAdmin
       .from('users')
-      .select('phone')
+      .select('phone_number')
       .eq('id', userId)
       .maybeSingle();
 
-    const destinationPhone = userProfile?.phone || '';
+    const destinationPhone = userProfile?.phone_number || '';
 
     await supabaseAdmin
       .from('alert_rules')
@@ -267,10 +276,12 @@ export class ManageAlertRulesUseCase {
       const insertionPayload = uniqueRulesByName.map((rule) => ({
         user_id: userId,
         channel_type: 'USER',
-        channel_destination: destinationPhone,
+        destination: destinationPhone,
         target_type: 'TREASURY',
         target_symbol: rule.name,
-        variation_step_percent: rule.variation,
+        settings: {
+          variation_step: rule.variation
+        },
         is_active: rule.enabled,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

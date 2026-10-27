@@ -72,7 +72,7 @@ export class TreasuryDirectProvider implements ITreasuryProvider {
             bondKey,
             bondName,
             indexerName,
-            profitabilityRateRaw: profitabilityRawText,
+            rateDescription: profitabilityRawText,
             profitabilityRate: Math.round(profitabilityRate * 10000) / 10000,
             unitPrice,
             maturityFormattedDate: this.formatMaturityDate(bondItem?.maturityDate)

@@ -37,7 +37,7 @@ export class MarketCloseSummaryWorker {
     try {
       const { data: groupRecords } = await supabaseAdmin
         .from('alert_rules')
-        .select('channel_destination, target_symbol')
+        .select('destination, target_symbol')
         .eq('is_active', true)
         .eq('channel_type', 'GROUP')
         .eq('target_type', 'ASSET');
@@ -48,7 +48,7 @@ export class MarketCloseSummaryWorker {
 
       const groupsMap = new Map<string, Set<string>>();
       for (const record of groupRecords) {
-        const groupName = record.channel_destination;
+        const groupName = record.destination;
         const ticker = record.target_symbol;
 
         if (groupName && ticker) {
@@ -98,14 +98,29 @@ export class MarketCloseSummaryWorker {
           summaryMessage += `${arrow} *${assetItem.ticker}*: R$ ${assetItem.price.toFixed(2)} (${directionText})\n`;
         }
 
-        summaryMessage += `\n⏱️ Gerado às 17:15 (Horário de Brasília)`;
+        const delivered = await whatsAppService.sendMessage(groupName, summaryMessage);
 
-        await whatsAppService.sendMessage(groupName, summaryMessage);
+        if (delivered) {
+          supabaseAdmin
+            .from('alert_logs')
+            .insert({
+              destination: groupName,
+              target_symbol: 'MARKET',
+              alert_type: 'MARKET_SUMMARY',
+              message: summaryMessage,
+              payload: {
+                assets_count: assetSummaries.length,
+                date: todayDateString
+              },
+              sent_at: new Date().toISOString()
+            })
+            .then(undefined, () => {});
+        }
       }
 
       this.lastDeliveredDate = todayDateString;
     } catch (error) {
-      LoggerUtils.error('MarketCloseSummaryWorker execution failed', error, 'MarketCloseSummaryWorker');
+      LoggerUtils.error('MarketCloseSummaryWorker cycle failed', error, 'MarketCloseSummaryWorker');
     }
   }
 }

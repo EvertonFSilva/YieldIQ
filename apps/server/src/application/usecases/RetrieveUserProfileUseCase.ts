@@ -10,7 +10,9 @@ export interface UserProfileResult {
   apiKey: string;
   phoneNumber: string | null;
   isWhatsAppEnabled: boolean;
+  role: string;
   privilege: string;
+  alertQuota: number;
   ruleLimit: number;
 }
 
@@ -18,7 +20,7 @@ export class RetrieveUserProfileUseCase {
   public async execute(userId: string): Promise<UserProfileResult> {
     const { data: userProfileRecord, error: retrievalError } = await supabaseAdmin
       .from('users')
-      .select('id, username, email, created_at, api_key, phone, is_whatsapp_enabled, privilege, rule_limit')
+      .select('id, username, email, created_at, api_key, phone_number, is_whatsapp_enabled, role, alert_quota')
       .eq('id', userId)
       .maybeSingle();
 
@@ -35,16 +37,21 @@ export class RetrieveUserProfileUseCase {
         .eq('id', userId);
     }
 
+    const assignedRole = userProfileRecord.role || 'USER';
+    const quota = userProfileRecord.alert_quota ?? 20;
+
     return {
       id: userProfileRecord.id,
       username: userProfileRecord.username,
       email: userProfileRecord.email,
       createdAt: userProfileRecord.created_at,
       apiKey: activeApiKey,
-      phoneNumber: userProfileRecord.phone || null,
+      phoneNumber: userProfileRecord.phone_number || null,
       isWhatsAppEnabled: Boolean(userProfileRecord.is_whatsapp_enabled),
-      privilege: userProfileRecord.privilege || 'user',
-      ruleLimit: userProfileRecord.rule_limit ?? 20
+      role: assignedRole,
+      privilege: assignedRole.toLowerCase(),
+      alertQuota: quota,
+      ruleLimit: quota
     };
   }
 }

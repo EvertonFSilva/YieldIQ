@@ -20,11 +20,10 @@ export class SupabaseAssetRepository implements IAssetRepository {
     return new Asset({
       id: record.id,
       ticker: record.ticker,
-      name: record.asset_name || record.name || record.fund_name || record.ticker,
-      type: (record.type as AssetType) || AssetType.FII,
-      taxpayerRegistrationNumber: record.corporate_taxpayer_id,
-      administratorName: record.position_manager,
-      managementCompanyName: record.classification,
+      name: record.name,
+      type: record.type as AssetType,
+      metadata: record.metadata || {},
+      isActive: record.is_active,
       createdAt: record.created_at ? new Date(record.created_at) : undefined,
       updatedAt: record.updated_at ? new Date(record.updated_at) : undefined
     });
@@ -47,11 +46,10 @@ export class SupabaseAssetRepository implements IAssetRepository {
         new Asset({
           id: record.id,
           ticker: record.ticker,
-          name: record.asset_name || record.name || record.fund_name || record.ticker,
-          type: (record.type as AssetType) || AssetType.FII,
-          taxpayerRegistrationNumber: record.corporate_taxpayer_id,
-          administratorName: record.position_manager,
-          managementCompanyName: record.classification,
+          name: record.name,
+          type: record.type as AssetType,
+          metadata: record.metadata || {},
+          isActive: record.is_active,
           createdAt: record.created_at ? new Date(record.created_at) : undefined,
           updatedAt: record.updated_at ? new Date(record.updated_at) : undefined
         })
@@ -64,10 +62,9 @@ export class SupabaseAssetRepository implements IAssetRepository {
         id: asset.id,
         ticker: asset.ticker.getSymbol(),
         type: asset.type,
-        asset_name: asset.name,
-        corporate_taxpayer_id: asset.taxpayerRegistrationNumber,
-        position_manager: asset.administratorName,
-        classification: asset.managementCompanyName,
+        name: asset.name,
+        metadata: asset.metadata,
+        is_active: asset.isActive,
         updated_at: new Date().toISOString()
       },
       { onConflict: 'ticker' }
@@ -83,10 +80,9 @@ export class SupabaseAssetRepository implements IAssetRepository {
       id: asset.id,
       ticker: asset.ticker.getSymbol(),
       type: asset.type,
-      asset_name: asset.name,
-      corporate_taxpayer_id: asset.taxpayerRegistrationNumber,
-      position_manager: asset.administratorName,
-      classification: asset.managementCompanyName,
+      name: asset.name,
+      metadata: asset.metadata,
+      is_active: asset.isActive,
       updated_at: new Date().toISOString()
     }));
 

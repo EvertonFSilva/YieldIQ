@@ -457,12 +457,14 @@ export class WhatsAppNotificationService {
       if (originatingUserId) {
         const currentTimestampIso = new Date().toISOString();
         supabaseAdmin
-          .from('api_telemetry')
+          .from('request_logs')
           .insert({
             user_id: originatingUserId,
             created_at: currentTimestampIso,
             endpoint: 'whatsapp_message',
-            method: 'SEND'
+            method: 'SEND',
+            status_code: 200,
+            duration_ms: 10
           })
           .then(undefined, () => {});
       }
@@ -527,12 +529,14 @@ export class WhatsAppNotificationService {
       if (originatingUserId) {
         const currentTimestampIso = new Date().toISOString();
         supabaseAdmin
-          .from('api_telemetry')
+          .from('request_logs')
           .insert({
             user_id: originatingUserId,
             created_at: currentTimestampIso,
             endpoint: 'whatsapp_document',
-            method: 'SEND'
+            method: 'SEND',
+            status_code: 200,
+            duration_ms: 10
           })
           .then(undefined, () => {});
       }

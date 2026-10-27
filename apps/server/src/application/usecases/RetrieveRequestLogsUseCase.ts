@@ -1,14 +1,15 @@
 import { supabaseAdmin } from '../../infrastructure/database/SupabaseClient';
 
-export interface TelemetryUsageSummary {
+export interface RequestLogsSummary {
   period: string;
   totalRequests: number;
+  averageDurationMs: number;
   requestsByEndpoint: Record<string, number>;
   requestsByMethod: Record<string, number>;
 }
 
-export class RetrieveTelemetryUsageUseCase {
-  public async execute(userId: string, periodString: string = 'month'): Promise<TelemetryUsageSummary> {
+export class RetrieveRequestLogsUseCase {
+  public async execute(userId: string, periodString: string = 'month'): Promise<RequestLogsSummary> {
     const currentTimestamp = new Date();
     let calculatedSinceDate: Date;
 
@@ -25,27 +26,33 @@ export class RetrieveTelemetryUsageUseCase {
         break;
     }
 
-    const { data: usageRecords } = await supabaseAdmin
-      .from('api_telemetry')
-      .select('endpoint, method')
+    const { data: logRecords } = await supabaseAdmin
+      .from('request_logs')
+      .select('endpoint, method, duration_ms')
       .eq('user_id', userId)
       .gte('created_at', calculatedSinceDate.toISOString());
 
-    const records = usageRecords || [];
+    const records = logRecords || [];
     const requestsByEndpoint: Record<string, number> = {};
     const requestsByMethod: Record<string, number> = {};
+    let totalDuration = 0;
 
     for (const record of records) {
       const endpoint = record.endpoint || 'unknown';
       const method = record.method || 'GET';
+      const duration = Number(record.duration_ms) || 0;
 
       requestsByEndpoint[endpoint] = (requestsByEndpoint[endpoint] || 0) + 1;
       requestsByMethod[method] = (requestsByMethod[method] || 0) + 1;
+      totalDuration += duration;
     }
+
+    const averageDurationMs = records.length > 0 ? Math.round(totalDuration / records.length) : 0;
 
     return {
       period: periodString,
       totalRequests: records.length,
+      averageDurationMs,
       requestsByEndpoint,
       requestsByMethod
     };

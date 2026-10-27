@@ -1,14 +1,22 @@
 import { AssetType } from '../enums/AssetType';
 import { Ticker } from '../value-objects/Ticker';
 
+export interface AssetMetadata {
+  taxId?: string | null;
+  administrator?: string | null;
+  manager?: string | null;
+  segment?: string | null;
+  mandate?: string | null;
+  [key: string]: any;
+}
+
 export interface AssetProperties {
   id: string;
   ticker: string | Ticker;
   name: string;
   type: AssetType;
-  taxpayerRegistrationNumber?: string | null;
-  administratorName?: string | null;
-  managementCompanyName?: string | null;
+  metadata?: AssetMetadata;
+  isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -18,9 +26,8 @@ export class Asset {
   public readonly ticker: Ticker;
   public readonly name: string;
   public readonly type: AssetType;
-  public readonly taxpayerRegistrationNumber?: string | null;
-  public readonly administratorName?: string | null;
-  public readonly managementCompanyName?: string | null;
+  public readonly metadata: AssetMetadata;
+  public readonly isActive: boolean;
   public readonly createdAt: Date;
   public readonly updatedAt: Date;
 
@@ -29,11 +36,22 @@ export class Asset {
     this.ticker = properties.ticker instanceof Ticker ? properties.ticker : new Ticker(properties.ticker);
     this.name = properties.name;
     this.type = properties.type;
-    this.taxpayerRegistrationNumber = properties.taxpayerRegistrationNumber || null;
-    this.administratorName = properties.administratorName || null;
-    this.managementCompanyName = properties.managementCompanyName || null;
+    this.metadata = properties.metadata || {};
+    this.isActive = properties.isActive !== false;
     this.createdAt = properties.createdAt || new Date();
     this.updatedAt = properties.updatedAt || new Date();
+  }
+
+  public get taxpayerRegistrationNumber(): string | null {
+    return this.metadata.taxId || null;
+  }
+
+  public get administratorName(): string | null {
+    return this.metadata.administrator || null;
+  }
+
+  public get managementCompanyName(): string | null {
+    return this.metadata.manager || null;
   }
 
   public toJSON() {
@@ -42,6 +60,8 @@ export class Asset {
       ticker: this.ticker.getSymbol(),
       name: this.name,
       type: this.type,
+      metadata: this.metadata,
+      isActive: this.isActive,
       taxpayerRegistrationNumber: this.taxpayerRegistrationNumber,
       administratorName: this.administratorName,
       managementCompanyName: this.managementCompanyName

@@ -12,6 +12,7 @@ router.put('/profile/phone', authenticateRequest, userController.updatePhoneNumb
 router.put('/profile/whatsapp', authenticateRequest, userController.updateWhatsAppPreference);
 router.put('/profile/password', authenticateRequest, userController.updatePassword);
 router.post('/profile/apikey', authenticateRequest, userController.regenerateApiKey);
-router.get('/profile/usage', authenticateRequest, userController.retrieveTelemetryUsage);
+router.get('/profile/usage', authenticateRequest, userController.retrieveRequestLogs);
+router.get('/profile/requests', authenticateRequest, userController.retrieveRequestLogs);
 
 export const userRoutes = router;

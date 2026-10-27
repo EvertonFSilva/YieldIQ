@@ -54,17 +54,20 @@ export class PriceAlertWorker {
       }
 
       const activeRules: ActiveAlertRuleRecord[] = records
-        .filter((r) => Boolean(r.channel_destination && r.target_symbol))
-        .map((r) => ({
-          id: r.id,
-          userId: r.user_id || undefined,
-          destination: r.channel_destination,
-          ticker: r.target_symbol,
-          minimumTargetPrice: r.price_target_min,
-          maximumTargetPrice: r.price_target_max,
-          variationPercentageThreshold: r.variation_step_percent,
-          isPriceAlertEnabled: Boolean(r.notify_price)
-        }));
+        .filter((r) => Boolean(r.destination && r.target_symbol))
+        .map((r) => {
+          const settings = r.settings || {};
+          return {
+            id: r.id,
+            userId: r.user_id || undefined,
+            destination: r.destination,
+            ticker: r.target_symbol,
+            minimumTargetPrice: settings.price_min != null ? Number(settings.price_min) : null,
+            maximumTargetPrice: settings.price_max != null ? Number(settings.price_max) : null,
+            variationPercentageThreshold: settings.variation_step != null ? Number(settings.variation_step) : null,
+            isPriceAlertEnabled: settings.notify_price !== false
+          };
+        });
 
       if (activeRules.length === 0) {
         return;
@@ -110,11 +113,12 @@ export class PriceAlertWorker {
                 if (!notifiedLevels.has(integerLevelReached)) {
                   notifiedLevels.add(integerLevelReached);
 
+                  const absoluteVariationText = `${Math.abs(changePercentage).toFixed(2)}%`;
+                  const directionIndicator = changePercentage >= 0 ? '🟢 ↗️' : '🔴 ↘️';
                   const directionText =
                     changePercentage >= 0
-                      ? `subiu +${absolutePercentage.toFixed(2)}%`
-                      : `caiu -${absolutePercentage.toFixed(2)}%`;
-                  const directionIndicator = changePercentage >= 0 ? '🟢 ↗️' : '🔴 ↘️';
+                      ? `subiu +${absoluteVariationText}`
+                      : `caiu -${absoluteVariationText}`;
 
                   const notificationMessage =
                     `🔔 *ALERTA DE VARIAÇÃO - ${tickerSymbol}*\n\n` +
@@ -135,10 +139,15 @@ export class PriceAlertWorker {
                       .insert({
                         rule_id: rule.id,
                         user_id: rule.userId,
-                        channel_destination: destination,
+                        destination: destination,
                         target_symbol: tickerSymbol,
                         alert_type: 'PRICE_VARIATION',
                         message: notificationMessage,
+                        payload: {
+                          price: currentPrice,
+                          variation_percentage: changePercentage,
+                          threshold_level: integerLevelReached * threshold
+                        },
                         sent_at: new Date().toISOString()
                       })
                       .then(undefined, () => {});
@@ -179,10 +188,15 @@ export class PriceAlertWorker {
                     .insert({
                       rule_id: rule.id,
                       user_id: rule.userId,
-                      channel_destination: destination,
+                      destination: destination,
                       target_symbol: tickerSymbol,
-                      alert_type: 'PRICE_MIN',
+                      alert_type: 'PRICE_TARGET',
                       message: minimumAlertMessage,
+                      payload: {
+                        target_type: 'MINIMUM',
+                        target_price: rule.minimumTargetPrice,
+                        actual_price: currentPrice
+                      },
                       sent_at: new Date().toISOString()
                     })
                     .then(undefined, () => {});
@@ -214,10 +228,15 @@ export class PriceAlertWorker {
                     .insert({
                       rule_id: rule.id,
                       user_id: rule.userId,
-                      channel_destination: destination,
+                      destination: destination,
                       target_symbol: tickerSymbol,
-                      alert_type: 'PRICE_MAX',
+                      alert_type: 'PRICE_TARGET',
                       message: maximumAlertMessage,
+                      payload: {
+                        target_type: 'MAXIMUM',
+                        target_price: rule.maximumTargetPrice,
+                        actual_price: currentPrice
+                      },
                       sent_at: new Date().toISOString()
                     })
                     .then(undefined, () => {});
@@ -226,7 +245,7 @@ export class PriceAlertWorker {
             }
           }
         } catch (error) {
-          LoggerUtils.error(`Failed to process price alert cycle for ${tickerSymbol}`, error, 'PriceAlertWorker');
+          LoggerUtils.error(`Failed to process price cycle for ${tickerSymbol}`, error, 'PriceAlertWorker');
         }
       }
     } catch (error) {

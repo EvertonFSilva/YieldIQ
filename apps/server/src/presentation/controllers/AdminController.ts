@@ -5,7 +5,8 @@ import { ForbiddenError, ValidationError, NotFoundError } from '../../domain/err
 
 export class AdminController {
   private ensureAdminPrivilege(request: Request): void {
-    if (request.user?.privilege !== 'admin') {
+    const userRole = request.user?.role || (request.user as any)?.privilege;
+    if (userRole !== 'ADMINISTRATOR' && userRole !== 'admin') {
       throw new ForbiddenError('Administrative privilege required');
     }
   }
@@ -96,17 +97,20 @@ export class AdminController {
 
       response.json({
         success: true,
-        data: (records || []).map((r) => ({
-          id: r.id,
-          group_name: r.channel_destination,
-          ticker: r.target_symbol,
-          alert_variation_pct: r.variation_step_percent,
-          is_notify_dividend: r.notify_dividend,
-          is_notify_material_fact: r.notify_document,
-          is_notify_report: r.notify_document,
-          is_active: r.is_active,
-          created_at: r.created_at
-        }))
+        data: (records || []).map((r) => {
+          const settings = r.settings || {};
+          return {
+            id: r.id,
+            group_name: r.destination,
+            ticker: r.target_symbol,
+            alert_variation_pct: settings.variation_step != null ? Number(settings.variation_step) : null,
+            is_notify_dividend: settings.notify_dividends !== false,
+            is_notify_material_fact: settings.notify_documents !== false,
+            is_notify_report: settings.notify_documents !== false,
+            is_active: r.is_active,
+            created_at: r.created_at
+          };
+        })
       });
     } catch (error) {
       nextStep(error);
@@ -150,7 +154,7 @@ export class AdminController {
         .from('alert_rules')
         .select('id')
         .eq('channel_type', 'GROUP')
-        .eq('channel_destination', cleanGroup)
+        .eq('destination', cleanGroup)
         .eq('target_symbol', cleanTicker)
         .maybeSingle();
 
@@ -161,16 +165,20 @@ export class AdminController {
       const variationNumber =
         alert_variation_pct != null ? parseFloat(String(alert_variation_pct).replace(',', '.')) : null;
 
+      const settings = {
+        variation_step: variationNumber,
+        notify_dividends: Boolean(is_notify_dividend),
+        notify_documents: Boolean(is_notify_material_fact || is_notify_report)
+      };
+
       const { data: insertedRecord, error: insertError } = await supabaseAdmin
         .from('alert_rules')
         .insert({
           channel_type: 'GROUP',
-          channel_destination: cleanGroup,
+          destination: cleanGroup,
           target_type: 'ASSET',
           target_symbol: cleanTicker,
-          variation_step_percent: variationNumber,
-          notify_dividend: Boolean(is_notify_dividend),
-          notify_document: Boolean(is_notify_material_fact || is_notify_report),
+          settings,
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -228,7 +236,7 @@ export class AdminController {
       this.ensureAdminPrivilege(request);
       const { data: users, error } = await supabaseAdmin
         .from('users')
-        .select('id, username, email, phone, privilege, rule_limit, created_at')
+        .select('id, username, email, phone_number, role, alert_quota, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -252,14 +260,14 @@ export class AdminController {
     try {
       this.ensureAdminPrivilege(request);
       const targetUserId = request.params.id;
-      const { privilege, ruleLimit } = request.body;
+      const { role, alertQuota, privilege, ruleLimit } = request.body;
 
       const updatePayload: Record<string, any> = {};
-      if (privilege) {
-        updatePayload.privilege = privilege;
+      if (role || privilege) {
+        updatePayload.role = role || privilege;
       }
-      if (ruleLimit !== undefined) {
-        updatePayload.rule_limit = ruleLimit;
+      if (alertQuota !== undefined || ruleLimit !== undefined) {
+        updatePayload.alert_quota = alertQuota ?? ruleLimit;
       }
 
       const { error } = await supabaseAdmin
