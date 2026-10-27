@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RetrieveTreasuryBondsUseCase } from '../../application/usecases/RetrieveTreasuryBondsUseCase';
 import { treasuryDirectProvider } from '../../infrastructure/scrapers/TreasuryDirectProvider';
-import { cacheService } from '../../infrastructure/cache/RobustCacheService';
+import { cacheService } from '../../infrastructure/cache/CacheService';
 
 export class TreasuryController {
   private readonly retrieveTreasuryBondsUseCase = new RetrieveTreasuryBondsUseCase(

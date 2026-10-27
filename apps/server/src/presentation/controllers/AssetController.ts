@@ -8,7 +8,7 @@ import { yahooPriceProvider } from '../../infrastructure/scrapers/YahooPriceProv
 import { b3DividendProvider } from '../../infrastructure/scrapers/B3DividendProvider';
 import { fnetDocumentProvider } from '../../infrastructure/scrapers/FnetDocumentProvider';
 import { assetRepository } from '../../infrastructure/repositories/SupabaseAssetRepository';
-import { cacheService } from '../../infrastructure/cache/RobustCacheService';
+import { cacheService } from '../../infrastructure/cache/CacheService';
 
 export class AssetController {
   private readonly retrieveAssetPriceUseCase = new RetrieveAssetPriceUseCase(yahooPriceProvider, cacheService);

@@ -5,7 +5,7 @@ interface CacheStorageRecord<T> {
   expirationTimestamp: number;
 }
 
-export class RobustCacheService implements ICacheService {
+export class CacheService implements ICacheService {
   private readonly memoryStorage = new Map<string, CacheStorageRecord<any>>();
   private readonly inFlightComputations = new Map<string, Promise<any>>();
   private readonly maximumEntriesCount: number;
@@ -48,78 +48,63 @@ export class RobustCacheService implements ICacheService {
       return storedRecord.value as T;
     }
 
-    if (storedRecord) {
-      this.memoryStorage.delete(cacheKey);
+    return null;
+  }
+
+  public async getStale<T>(cacheKey: string): Promise<StaleCacheResult<T> | null> {
+    const storedRecord = this.memoryStorage.get(cacheKey);
+    if (!storedRecord) {
+      return null;
     }
 
-    return null;
+    const currentTimestamp = Date.now();
+    const isStale = storedRecord.expirationTimestamp <= currentTimestamp;
+    this.refreshAccessOrder(cacheKey, storedRecord);
+
+    return {
+      value: storedRecord.value as T,
+      isStale
+    };
   }
 
   public async set<T>(
     cacheKey: string,
-    cacheValue: T,
+    value: T,
     timeToLiveMilliseconds?: number
   ): Promise<void> {
-    const duration = timeToLiveMilliseconds ?? this.defaultTimeToLiveMilliseconds;
-    const expirationTimestamp = Date.now() + duration;
+    const ttl = timeToLiveMilliseconds ?? this.defaultTimeToLiveMilliseconds;
+    const expirationTimestamp = Date.now() + ttl;
 
-    this.enforceCapacityLimit();
-    this.memoryStorage.set(cacheKey, { value: cacheValue, expirationTimestamp });
+    this.ensureStorageCapacity();
+
+    this.memoryStorage.set(cacheKey, {
+      value,
+      expirationTimestamp
+    });
   }
 
   public async delete(cacheKey: string): Promise<void> {
     this.memoryStorage.delete(cacheKey);
-    this.inFlightComputations.delete(cacheKey);
   }
 
-  public async clear(searchPattern?: string): Promise<void> {
-    if (searchPattern) {
-      for (const storageKey of this.memoryStorage.keys()) {
-        if (storageKey.includes(searchPattern)) {
-          this.memoryStorage.delete(storageKey);
-        }
-      }
-    } else {
-      this.memoryStorage.clear();
-      this.inFlightComputations.clear();
-    }
-  }
-
-  public async getStale<T>(cacheKey: string): Promise<StaleCacheResult<T> | null> {
-    const currentTimestamp = Date.now();
-    const storedRecord = this.memoryStorage.get(cacheKey);
-
-    if (storedRecord) {
-      this.refreshAccessOrder(cacheKey, storedRecord);
-      return {
-        value: storedRecord.value as T,
-        isStale: storedRecord.expirationTimestamp <= currentTimestamp
-      };
-    }
-
-    return null;
-  }
-
-  public async getOrCompute<T>(
+  public async getOrSet<T>(
     cacheKey: string,
-    computeFunction: () => Promise<T>,
+    computationFactory: () => Promise<T>,
     timeToLiveMilliseconds?: number
   ): Promise<T> {
-    const cachedData = await this.get<T>(cacheKey);
-    if (cachedData !== null) {
-      return cachedData;
+    const cachedValue = await this.get<T>(cacheKey);
+    if (cachedValue !== null) {
+      return cachedValue;
     }
 
-    const activeComputation = this.inFlightComputations.get(cacheKey);
-    if (activeComputation) {
-      return activeComputation as Promise<T>;
+    const existingComputation = this.inFlightComputations.get(cacheKey);
+    if (existingComputation) {
+      return existingComputation as Promise<T>;
     }
 
-    const computationPromise = computeFunction()
+    const computationPromise = computationFactory()
       .then(async (computedResult) => {
-        if (computedResult !== null && computedResult !== undefined) {
-          await this.set(cacheKey, computedResult, timeToLiveMilliseconds);
-        }
+        await this.set(cacheKey, computedResult, timeToLiveMilliseconds);
         return computedResult;
       })
       .finally(() => {
@@ -127,15 +112,39 @@ export class RobustCacheService implements ICacheService {
       });
 
     this.inFlightComputations.set(cacheKey, computationPromise);
+
     return computationPromise;
   }
 
-  private refreshAccessOrder<T>(cacheKey: string, storedRecord: CacheStorageRecord<T>): void {
-    this.memoryStorage.delete(cacheKey);
-    this.memoryStorage.set(cacheKey, storedRecord);
+  public async invalidateByPrefix(cacheKeyPrefix: string): Promise<number> {
+    let invalidatedCount = 0;
+    for (const key of this.memoryStorage.keys()) {
+      if (key.startsWith(cacheKeyPrefix)) {
+        this.memoryStorage.delete(key);
+        invalidatedCount++;
+      }
+    }
+    return invalidatedCount;
   }
 
-  private enforceCapacityLimit(): void {
+  public async clear(): Promise<void> {
+    this.memoryStorage.clear();
+    this.inFlightComputations.clear();
+  }
+
+  public getCacheMetrics(): { totalEntries: number; inFlightComputations: number } {
+    return {
+      totalEntries: this.memoryStorage.size,
+      inFlightComputations: this.inFlightComputations.size
+    };
+  }
+
+  private refreshAccessOrder(cacheKey: string, record: CacheStorageRecord<any>): void {
+    this.memoryStorage.delete(cacheKey);
+    this.memoryStorage.set(cacheKey, record);
+  }
+
+  private ensureStorageCapacity(): void {
     if (this.memoryStorage.size < this.maximumEntriesCount) {
       return;
     }
@@ -165,4 +174,4 @@ export class RobustCacheService implements ICacheService {
   }
 }
 
-export const cacheService = new RobustCacheService();
+export const cacheService = new CacheService();

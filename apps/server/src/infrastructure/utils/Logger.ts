@@ -16,7 +16,7 @@ export const logger = pino({
       : undefined
 });
 
-export class LoggerUtils {
+export class Logger {
   public static info(message: string, ...parameters: any[]): void {
     logger.info(message, ...parameters);
   }
@@ -37,3 +37,5 @@ export class LoggerUtils {
     logger.debug(message, ...parameters);
   }
 }
+
+export const LoggerUtils = Logger;
