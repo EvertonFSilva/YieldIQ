@@ -17,7 +17,6 @@ router.get('/health', (_request: Request, response: Response) => {
 });
 
 router.use('/assets', assetRoutes);
-router.use('/funds', assetRoutes);
 router.use('/treasury', treasuryRoutes);
 router.use('/auth', userRoutes);
 router.use('/users', userRoutes);

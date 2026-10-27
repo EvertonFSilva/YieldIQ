@@ -6,6 +6,7 @@ import os from 'os';
 import fs from 'fs';
 import pino from 'pino';
 import { supabaseAdmin } from '../database/SupabaseClient';
+import { postgresDatabase } from '../database/PostgresDatabaseClient';
 import { LoggerUtils } from '../utils/Logger';
 
 const makeWASocket = (baileys as any).default?.default || (baileys as any).default || (baileys as any).makeWASocket;
@@ -63,6 +64,32 @@ export class WhatsAppNotificationService {
 
   private async restoreAuthenticationSessionFromStorage(): Promise<void> {
     try {
+      if (!fs.existsSync(AUTHENTICATION_DIRECTORY)) {
+        fs.mkdirSync(AUTHENTICATION_DIRECTORY, { recursive: true });
+      }
+
+      let restoredFromPostgres = false;
+      try {
+        const queryResult = await postgresDatabase.query(
+          'SELECT file_name, file_content FROM public.whatsapp_sessions;'
+        );
+        if (queryResult.rows.length > 0) {
+          for (const row of queryResult.rows) {
+            const fileName = row.file_name;
+            const fileBuffer = Buffer.isBuffer(row.file_content) ? row.file_content : Buffer.from(row.file_content);
+            fs.writeFileSync(path.join(AUTHENTICATION_DIRECTORY, fileName), fileBuffer);
+          }
+          restoredFromPostgres = true;
+          LoggerUtils.info(`Restored ${queryResult.rows.length} WhatsApp session files from PostgreSQL database storage`);
+        }
+      } catch (databaseError) {
+        LoggerUtils.error('Failed to query whatsapp_sessions table', databaseError, 'WhatsAppService');
+      }
+
+      if (restoredFromPostgres) {
+        return;
+      }
+
       await this.ensureStorageBucketExists();
       const { data: storedFiles, error: listError } = await supabaseAdmin.storage
         .from(SESSION_STORAGE_BUCKET)
@@ -70,10 +97,6 @@ export class WhatsAppNotificationService {
 
       if (listError || !storedFiles || storedFiles.length === 0) {
         return;
-      }
-
-      if (!fs.existsSync(AUTHENTICATION_DIRECTORY)) {
-        fs.mkdirSync(AUTHENTICATION_DIRECTORY, { recursive: true });
       }
 
       for (const fileItem of storedFiles) {
@@ -104,7 +127,6 @@ export class WhatsAppNotificationService {
         return;
       }
 
-      await this.ensureStorageBucketExists();
       const directoryEntries = fs.readdirSync(AUTHENTICATION_DIRECTORY, { withFileTypes: true });
 
       for (const directoryEntry of directoryEntries) {
@@ -114,9 +136,27 @@ export class WhatsAppNotificationService {
 
         const filePath = path.join(AUTHENTICATION_DIRECTORY, directoryEntry.name);
         const fileContent = fs.readFileSync(filePath);
-        await supabaseAdmin.storage
-          .from(SESSION_STORAGE_BUCKET)
-          .upload(directoryEntry.name, fileContent, { upsert: true });
+
+        try {
+          await postgresDatabase.query(
+            `INSERT INTO public.whatsapp_sessions (file_name, file_content, file_size, updated_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (file_name) DO UPDATE SET
+               file_content = EXCLUDED.file_content,
+               file_size = EXCLUDED.file_size,
+               updated_at = NOW();`,
+            [directoryEntry.name, fileContent, fileContent.length]
+          );
+        } catch (dbError) {
+          LoggerUtils.error(`Failed to store session file ${directoryEntry.name} in database`, dbError, 'WhatsAppService');
+        }
+
+        try {
+          await supabaseAdmin.storage
+            .from(SESSION_STORAGE_BUCKET)
+            .upload(directoryEntry.name, fileContent, { upsert: true });
+        } catch {
+        }
       }
     } catch (error) {
       LoggerUtils.error('Failed to synchronize WhatsApp session to storage', error, 'WhatsAppService');
@@ -125,6 +165,12 @@ export class WhatsAppNotificationService {
 
   private async clearAuthenticationSessionStorage(): Promise<void> {
     try {
+      try {
+        await postgresDatabase.query('DELETE FROM public.whatsapp_sessions;');
+      } catch (dbError) {
+        LoggerUtils.error('Failed to clear whatsapp_sessions table', dbError, 'WhatsAppService');
+      }
+
       let hasMoreFiles = true;
       while (hasMoreFiles) {
         const { data: files, error: listError } = await supabaseAdmin.storage

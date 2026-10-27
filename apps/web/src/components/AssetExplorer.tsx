@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Search, Filter, ArrowUpRight, RefreshCw, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Search, Filter, ArrowUpRight, RefreshCw, AlertCircle, Building2, Sprout, Zap, PieChart } from 'lucide-react';
 import { assetService } from '../services/apiClient';
 import { AssetItem } from '../types';
 import { AssetDetailModal } from './AssetDetailModal';
 
 export const AssetExplorer: React.FC = () => {
   const [assetsList, setAssetsList] = useState<AssetItem[]>([]);
-  const [filteredAssets, setFilteredAssets] = useState<AssetItem[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -23,7 +22,6 @@ export const AssetExplorer: React.FC = () => {
       .then((items) => {
         if (isMounted) {
           setAssetsList(items);
-          setFilteredAssets(items);
           setIsLoading(false);
         }
       })
@@ -39,7 +37,7 @@ export const AssetExplorer: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
+  const filteredAssets = useMemo(() => {
     let result = assetsList;
 
     if (selectedTypeFilter !== 'ALL') {
@@ -51,24 +49,36 @@ export const AssetExplorer: React.FC = () => {
       result = result.filter(
         (item) =>
           item.ticker.toLowerCase().includes(query) ||
-          item.name.toLowerCase().includes(query)
+          item.name.toLowerCase().includes(query) ||
+          (item.administratorName || '').toLowerCase().includes(query)
       );
     }
 
-    setFilteredAssets(result);
+    return result;
   }, [searchQuery, selectedTypeFilter, assetsList]);
+
+  const metrics = useMemo(() => {
+    const total = assetsList.length;
+    const fiiCount = assetsList.filter((a) => a.type === 'FII').length;
+    const fiagroCount = assetsList.filter((a) => a.type === 'FIAGRO').length;
+    const fiInfraCount = assetsList.filter((a) => a.type === 'FI_INFRA').length;
+    return { total, fiiCount, fiagroCount, fiInfraCount };
+  }, [assetsList]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Explorador de Ativos</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <PieChart className="h-6 w-6 text-emerald-400" />
+            <span>Explorador de Ativos de Rendimento</span>
+          </h1>
           <p className="text-sm text-slate-400">
-            Acompanhe FIIs, FIAGROs e FI-INFRAs listados na B3 com proventos e valuations automáticos.
+            Acompanhe FIIs, FIAGROs e FI-INFRAs listados na B3 com proventos oficiais e cálculos de valuation.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
           {['ALL', 'FII', 'FIAGRO', 'FI_INFRA'].map((typeOption) => (
             <button
               key={typeOption}
@@ -79,9 +89,47 @@ export const AssetExplorer: React.FC = () => {
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
               }`}
             >
-              {typeOption === 'ALL' ? 'Todos' : typeOption}
+              {typeOption === 'ALL' ? 'Todos' : typeOption.replace('_', '-')}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-medium">Total Ativos</span>
+            <PieChart className="h-4 w-4 text-slate-500" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-white">{metrics.total}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Monitorados 24/7</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-medium">FIIs Imobiliários</span>
+            <Building2 className="h-4 w-4 text-emerald-400" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-emerald-400">{metrics.fiiCount}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Renda Imobiliária</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-medium">FIAGROs Agro</span>
+            <Sprout className="h-4 w-4 text-amber-400" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-amber-400">{metrics.fiagroCount}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Crédito & Terras Agro</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-medium">FI-INFRAs Infra</span>
+            <Zap className="h-4 w-4 text-cyan-400" />
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-cyan-400">{metrics.fiInfraCount}</p>
+          <div className="mt-1 text-[11px] text-slate-500">Isentos de I.R.</div>
         </div>
       </div>
 
@@ -91,8 +139,8 @@ export const AssetExplorer: React.FC = () => {
           type="text"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Buscar por ticker ou nome (ex: HGLG11, KNIP11, RZTR11, JURO11)..."
-          className="w-full rounded-xl border border-slate-800 bg-slate-900/60 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
+          placeholder="Buscar por código ou nome (ex: HGLG11, KNIP11, RZTR11, JURO11)..."
+          className="w-full rounded-xl border border-slate-800 bg-slate-900/60 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-emerald-500/50"
         />
       </div>
 
@@ -114,36 +162,46 @@ export const AssetExplorer: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredAssets.map((assetItem) => (
-            <div
-              key={assetItem.id}
-              onClick={() => setSelectedAssetForModal(assetItem)}
-              className="group cursor-pointer rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 transition hover:border-emerald-500/40 hover:bg-slate-900 hover:shadow-xl hover:shadow-emerald-950/20"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="rounded-md bg-emerald-500/10 px-2.5 py-1 font-mono text-base font-bold text-emerald-400 border border-emerald-500/20">
-                    {assetItem.ticker}
-                  </span>
-                  <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400 uppercase">
-                    {assetItem.type}
+          {filteredAssets.map((assetItem) => {
+            const isFii = assetItem.type === 'FII';
+            const isFiagro = assetItem.type === 'FIAGRO';
+            const badgeClasses = isFii
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : isFiagro
+              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+              : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+
+            return (
+              <div
+                key={assetItem.id}
+                onClick={() => setSelectedAssetForModal(assetItem)}
+                className="group cursor-pointer rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 transition hover:border-emerald-500/40 hover:bg-slate-900 hover:shadow-xl hover:shadow-emerald-950/20"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className={`rounded-md px-2.5 py-1 font-mono text-base font-bold border ${badgeClasses}`}>
+                      {assetItem.ticker}
+                    </span>
+                    <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400 uppercase">
+                      {assetItem.type.replace('_', '-')}
+                    </span>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-slate-600 transition group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </div>
+
+                <h3 className="mt-3 line-clamp-2 text-sm font-medium text-slate-300 group-hover:text-white transition">
+                  {assetItem.name}
+                </h3>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-800/60 pt-3 text-xs text-slate-400">
+                  <span>Administração</span>
+                  <span className="line-clamp-1 max-w-[140px] text-right font-medium text-slate-300">
+                    {assetItem.administratorName || 'B3 Oficial'}
                   </span>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-600 transition group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </div>
-
-              <h3 className="mt-3 line-clamp-2 text-sm font-medium text-slate-300">
-                {assetItem.name}
-              </h3>
-
-              <div className="mt-4 flex items-center justify-between border-t border-slate-800/60 pt-3 text-xs text-slate-400">
-                <span>Gestão / Admin</span>
-                <span className="line-clamp-1 max-w-[140px] text-right font-medium text-slate-300">
-                  {assetItem.administratorName || 'Não informado'}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
