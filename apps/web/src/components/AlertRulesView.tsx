@@ -2,19 +2,11 @@ import React, { useEffect, useState } from 'react';
 import {
   Plus,
   Trash2,
-  CheckCircle2,
   Send,
   RefreshCw,
-  Smartphone,
   ArrowRight,
   ShieldCheck,
-  Bell,
-  Wifi,
-  Battery,
-  Signal,
-  CheckCheck,
-  TrendingUp,
-  FileText
+  Bell
 } from 'lucide-react';
 import { alertService } from '../services/apiClient';
 import { AlertRuleItem } from '../types';
@@ -22,16 +14,12 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { CustomSwitch } from './common/CustomSwitch';
 
-type PreviewMessageType = 'dividend' | 'price' | 'report';
-
 export const AlertRulesView: React.FC = () => {
   const { currentUser, openAuthModal } = useAuth();
   const toast = useToast();
   const [rulesList, setRulesList] = useState<AlertRuleItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSendingTestAlert, setIsSendingTestAlert] = useState<boolean>(false);
-  const [selectedPreviewType, setSelectedPreviewType] = useState<PreviewMessageType>('dividend');
-  const [isTypingAnimation, setIsTypingAnimation] = useState<boolean>(false);
 
   const [assetInput, setAssetInput] = useState<string>('');
   const [variationInput, setVariationInput] = useState<string>('1.0');
@@ -62,15 +50,6 @@ export const AlertRulesView: React.FC = () => {
   useEffect(() => {
     fetchRules();
   }, [currentUser]);
-
-  const handleSelectPreviewTab = (tab: PreviewMessageType) => {
-    if (tab === selectedPreviewType) return;
-    setIsTypingAnimation(true);
-    setSelectedPreviewType(tab);
-    setTimeout(() => {
-      setIsTypingAnimation(false);
-    }, 700);
-  };
 
   const handleCreateRule = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -133,228 +112,68 @@ export const AlertRulesView: React.FC = () => {
     }
   };
 
-  const renderSmartphoneMockup = () => (
-    <div className="relative mx-auto w-full max-w-[325px] rounded-[48px] border-[6px] border-slate-700/80 bg-slate-950 p-2.5 shadow-2xl shadow-emerald-950/30 ring-1 ring-slate-800 transition-all hover:scale-[1.01]">
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full flex items-center justify-between px-3 z-30 shadow-inner">
-        <div className="w-2.5 h-2.5 rounded-full bg-slate-950 border border-slate-800" />
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
-      </div>
-
-      <div className="overflow-hidden rounded-[38px] bg-[#0b141a] text-slate-100 flex flex-col h-[530px] border border-slate-900 relative">
-        <div className="bg-[#1f2c34] px-5 pt-6 pb-2.5 flex items-center justify-between text-[11px] text-slate-300 select-none">
-          <span className="font-semibold text-xs tracking-tight">09:41</span>
-          <div className="flex items-center gap-1.5">
-            <Signal className="h-3 w-3" />
-            <Wifi className="h-3 w-3" />
-            <Battery className="h-3.5 w-3.5" />
-          </div>
-        </div>
-
-        <div className="bg-[#1f2c34] px-3.5 py-2 flex items-center justify-between border-b border-slate-850 shadow-md">
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 flex items-center justify-center font-bold text-slate-950 text-xs shadow-md">
-              YQ
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1f2c34]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-xs text-white">YieldIQ Alertas</span>
-                <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-              </div>
-              <div className="h-3.5 flex items-center">
-                {isTypingAnimation ? (
-                  <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 animate-pulse">
-                    digitando...
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-emerald-400 font-medium">online</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 p-3.5 flex flex-col justify-end space-y-3 bg-[radial-gradient(#1f2c34_1px,transparent_1px)] [background-size:16px_16px] overflow-hidden">
-          <div className="self-center rounded-lg bg-[#182229] px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider shadow">
-            Hoje
-          </div>
-
-          <div className="min-h-[160px] flex flex-col justify-end">
-            {isTypingAnimation ? (
-              <div className="max-w-[75%] rounded-2xl rounded-tl-sm bg-[#1f2c34] p-3 text-xs text-white shadow-lg space-y-1 animate-scaleIn">
-                <div className="flex items-center gap-1.5 py-1">
-                  <span className="text-[10px] text-slate-400 font-medium">YieldIQ está escrevendo</span>
-                  <div className="flex items-center gap-1 ml-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 typing-dot" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 typing-dot" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 typing-dot" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="transition-all duration-300 ease-in-out transform">
-                {selectedPreviewType === 'dividend' && (
-                  <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-[#005c4b] p-3.5 text-xs text-white shadow-xl space-y-2 animate-fadeIn border border-emerald-500/20">
-                    <div className="font-bold text-[11px] text-emerald-200 flex items-center gap-1.5 border-b border-emerald-600/40 pb-1">
-                      <Bell className="h-3.5 w-3.5 text-amber-300" />
-                      <span>Provento Anunciado &bull; MXRF11</span>
-                    </div>
-                    <div className="text-[11px] leading-relaxed text-slate-100 space-y-0.5">
-                      <p><span className="font-semibold text-emerald-200">Ativo:</span> MAXI RENDA FII</p>
-                      <p><span className="font-semibold text-emerald-200">Rendimento:</span> R$ 0,09 / cota</p>
-                      <p><span className="font-semibold text-emerald-200">Data Com:</span> 15/10/2026</p>
-                      <p><span className="font-semibold text-emerald-200">Pagamento:</span> 24/10/2026</p>
-                      <p><span className="font-semibold text-emerald-200">DY Mensal:</span> 0,98% (12,95% a.a.)</p>
-                    </div>
-                    <div className="flex items-center justify-end gap-1 text-[9px] text-emerald-300/80 pt-0.5">
-                      <span>09:41</span>
-                      <CheckCheck className="h-3 w-3 text-cyan-300" />
-                    </div>
-                  </div>
-                )}
-
-                {selectedPreviewType === 'price' && (
-                  <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-[#005c4b] p-3.5 text-xs text-white shadow-xl space-y-2 animate-fadeIn border border-emerald-500/20">
-                    <div className="font-bold text-[11px] text-emerald-200 flex items-center gap-1.5 border-b border-emerald-600/40 pb-1">
-                      <TrendingUp className="h-3.5 w-3.5 text-cyan-300" />
-                      <span>Oscilação de Preço &bull; HGLG11</span>
-                    </div>
-                    <div className="text-[11px] leading-relaxed text-slate-100 space-y-0.5">
-                      <p><span className="font-semibold text-emerald-200">Ativo:</span> CSHG LOGÍSTICA</p>
-                      <p><span className="font-semibold text-emerald-200">Cotação Atual:</span> R$ 151,70</p>
-                      <p><span className="font-semibold text-emerald-200">Variação Diária:</span> +0,33%</p>
-                      <p><span className="font-semibold text-emerald-200">Preço Teto Alvo:</span> R$ 150,00</p>
-                    </div>
-                    <div className="flex items-center justify-end gap-1 text-[9px] text-emerald-300/80 pt-0.5">
-                      <span>09:41</span>
-                      <CheckCheck className="h-3 w-3 text-cyan-300" />
-                    </div>
-                  </div>
-                )}
-
-                {selectedPreviewType === 'report' && (
-                  <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-[#005c4b] p-3.5 text-xs text-white shadow-xl space-y-2 animate-fadeIn border border-emerald-500/20">
-                    <div className="font-bold text-[11px] text-emerald-200 flex items-center gap-1.5 border-b border-emerald-600/40 pb-1">
-                      <FileText className="h-3.5 w-3.5 text-amber-300" />
-                      <span>Fato Relevante CVM &bull; CPTS11</span>
-                    </div>
-                    <div className="text-[11px] leading-relaxed text-slate-100 space-y-0.5">
-                      <p><span className="font-semibold text-emerald-200">Ativo:</span> CAPITÂNIA SECURITIES</p>
-                      <p><span className="font-semibold text-emerald-200">Assunto:</span> Relatório Gerencial Mensal</p>
-                      <p><span className="font-semibold text-emerald-200">Protocolo FNET:</span> 894123</p>
-                    </div>
-                    <div className="flex items-center justify-end gap-1 text-[9px] text-emerald-300/80 pt-0.5">
-                      <span>09:41</span>
-                      <CheckCheck className="h-3 w-3 text-cyan-300" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-[#1f2c34] p-2 flex items-center gap-2 border-t border-slate-800">
-          <div className="flex-1 rounded-full bg-[#2a3942] px-3.5 py-1.5 text-[11px] text-slate-400">
-            Mensagem
-          </div>
-          <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-xs shadow">
-            ▶
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   if (!currentUser) {
     return (
-      <div className="space-y-8 animate-fadeIn">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-6xl mx-auto rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/50 to-slate-950 p-8 sm:p-12">
-          <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex rounded-2xl bg-emerald-500/10 p-3 text-emerald-400 border border-emerald-500/20">
-              <Smartphone className="h-8 w-8" />
-            </div>
+      <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto">
+        <div className="rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/50 to-slate-950 p-8 sm:p-12 text-center space-y-8 shadow-2xl">
+          <div className="inline-flex rounded-2xl bg-emerald-500/10 p-4 text-emerald-400 border border-emerald-500/20 mx-auto">
+            <Bell className="h-10 w-10" />
+          </div>
 
-            <div className="space-y-3">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                Alertas Automatizados no seu WhatsApp
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Receba avisos instantâneos no momento exato em que um ativo anunciar dividendos na B3, publicar fatos relevantes na CVM ou cruzar seus limites de preço.
+          <div className="space-y-3 max-w-2xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
+              Alertas Automatizados no seu WhatsApp
+            </h1>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Receba avisos instantâneos no momento exato em que um ativo anunciar dividendos na B3, publicar fatos relevantes na CVM ou cruzar seus limites de preço.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 space-y-2">
+              <span className="text-xs font-bold text-emerald-400 block uppercase tracking-wider">
+                Proventos na Data Com
+              </span>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Aviso imediato do valor por cota, data de corte e data de liquidação oficial na B3.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1">
-                <span className="text-xs font-bold text-emerald-400 block">Proventos na Data Com</span>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Aviso imediato do valor por cota e data de liquidação.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1">
-                <span className="text-xs font-bold text-teal-400 block">Fatos Relevantes CVM</span>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Resumos executivos e links oficiais de comunicados.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-1">
-                <span className="text-xs font-bold text-amber-400 block">Piso & Teto de Preço</span>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Disparos inteligentes quando a cotação atingir seus alvos.
-                </p>
-              </div>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 space-y-2">
+              <span className="text-xs font-bold text-teal-400 block uppercase tracking-wider">
+                Fatos Relevantes CVM
+              </span>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Resumos executivos e protocolos FNet com link direto para os documentos originais.
+              </p>
             </div>
 
-            <div className="pt-4 flex flex-col sm:flex-row items-center gap-3">
-              <button
-                onClick={() => openAuthModal('login')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-xs font-bold text-slate-950 hover:brightness-110 transition shadow-lg shadow-emerald-500/20"
-              >
-                <span>Entrar na Minha Conta</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={() => openAuthModal('register')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-6 py-3.5 text-xs font-bold text-white hover:bg-slate-800 transition"
-              >
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>Criar Conta Gratuita</span>
-              </button>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 space-y-2">
+              <span className="text-xs font-bold text-amber-400 block uppercase tracking-wider">
+                Piso & Teto de Preço
+              </span>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Disparos inteligentes quando a cotação oscilar além do degrau ou atingir seu alvo.
+              </p>
             </div>
           </div>
 
-          <div className="lg:col-span-5 flex flex-col items-center space-y-4">
-            <div className="flex items-center gap-1.5 rounded-xl bg-slate-900/80 p-1 border border-slate-800 text-xs shadow-md">
-              <button
-                onClick={() => handleSelectPreviewTab('dividend')}
-                className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                  selectedPreviewType === 'dividend' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Proventos
-              </button>
-              <button
-                onClick={() => handleSelectPreviewTab('price')}
-                className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                  selectedPreviewType === 'price' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Cotações
-              </button>
-              <button
-                onClick={() => handleSelectPreviewTab('report')}
-                className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                  selectedPreviewType === 'report' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                CVM FNET
-              </button>
-            </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button
+              onClick={() => openAuthModal('login')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3.5 text-xs font-bold text-slate-950 hover:brightness-110 transition shadow-lg shadow-emerald-500/20"
+            >
+              <span>Entrar na Minha Conta</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
 
-            {renderSmartphoneMockup()}
+            <button
+              onClick={() => openAuthModal('register')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-8 py-3.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span>Criar Conta Gratuita</span>
+            </button>
           </div>
         </div>
       </div>
