@@ -242,11 +242,14 @@ export const AdminView: React.FC = () => {
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium">Disponibilidade do Sistema</span>
+            <span className="text-xs font-medium">Cluster & Infraestrutura</span>
             <Server className="h-4 w-4 text-emerald-400" />
           </div>
-          <p className="mt-2 text-3xl font-extrabold text-emerald-400">99.98%</p>
-          <div className="mt-1 text-xs text-slate-500">PostgreSQL Pooler Ativo</div>
+          <p className="mt-2 text-2xl font-extrabold text-emerald-400 flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+            <span>Online</span>
+          </p>
+          <div className="mt-1 text-xs text-slate-500">PostgreSQL + Redis Ativos</div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">

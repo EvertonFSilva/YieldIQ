@@ -11,7 +11,7 @@ export interface PriceQuoteProperties {
   fiftyTwoWeekLowPrice?: number | null;
   trailingAnnualDividendYield?: number | null;
   assetDescription?: string | null;
-  lastUpdatedAt?: Date;
+  lastUpdatedAt?: Date | string | null;
 }
 
 export class PriceQuote {
@@ -38,7 +38,15 @@ export class PriceQuote {
     this.fiftyTwoWeekLowPrice = properties.fiftyTwoWeekLowPrice != null ? new Money(properties.fiftyTwoWeekLowPrice) : null;
     this.trailingAnnualDividendYield = properties.trailingAnnualDividendYield || null;
     this.assetDescription = properties.assetDescription || null;
-    this.lastUpdatedAt = properties.lastUpdatedAt || new Date();
+    
+    if (properties.lastUpdatedAt instanceof Date) {
+      this.lastUpdatedAt = properties.lastUpdatedAt;
+    } else if (typeof properties.lastUpdatedAt === 'string' && properties.lastUpdatedAt.length > 0) {
+      const parsedDate = new Date(properties.lastUpdatedAt);
+      this.lastUpdatedAt = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    } else {
+      this.lastUpdatedAt = new Date();
+    }
   }
 
   public calculateDailyVariationPercentage(): number {
@@ -53,6 +61,7 @@ export class PriceQuote {
   }
 
   public toJSON() {
+    const validDate = this.lastUpdatedAt instanceof Date ? this.lastUpdatedAt : new Date(this.lastUpdatedAt);
     return {
       currentPrice: this.currentPrice.getAmount(),
       previousClose: this.previousClose.getAmount(),
@@ -65,7 +74,7 @@ export class PriceQuote {
       trailingAnnualDividendYield: this.trailingAnnualDividendYield,
       dailyVariationPercentage: Math.round(this.calculateDailyVariationPercentage() * 100) / 100,
       assetDescription: this.assetDescription,
-      lastUpdatedAt: this.lastUpdatedAt.toISOString()
+      lastUpdatedAt: (isNaN(validDate.getTime()) ? new Date() : validDate).toISOString()
     };
   }
 }

@@ -13,22 +13,37 @@ import {
   Activity,
   Zap,
   BarChart3,
-  Server
+  Server,
+  User,
+  Lock
 } from 'lucide-react';
 import { userService } from '../services/apiClient';
 import { UserAccountProfile } from '../types';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { ConfirmationModal } from './ConfirmationModal';
 import { CustomSwitch } from './common/CustomSwitch';
 
 export const ProfileSettingsView: React.FC = () => {
   const toast = useToast();
+  const { refreshProfile } = useAuth();
   const [userProfile, setUserProfile] = useState<UserAccountProfile | null>(null);
+
+  const [usernameInput, setUsernameInput] = useState<string>('');
+  const [isSavingUsername, setIsSavingUsername] = useState<boolean>(false);
+
   const [phoneNumberInput, setPhoneNumberInput] = useState<string>('');
   const [isWhatsAppEnabled, setIsWhatsAppEnabled] = useState<boolean>(true);
+  const [isSavingPhone, setIsSavingPhone] = useState<boolean>(false);
+
+  const [currentPassword, setCurrentPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [showPasswordFields, setShowPasswordFields] = useState<boolean>(false);
+  const [isSavingPassword, setIsSavingPassword] = useState<boolean>(false);
+
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState<boolean>(false);
 
@@ -38,6 +53,7 @@ export const ProfileSettingsView: React.FC = () => {
       .retrieveProfile()
       .then((profile) => {
         setUserProfile(profile);
+        setUsernameInput(profile.username || '');
         setPhoneNumberInput(profile.phoneNumber || '');
         setIsWhatsAppEnabled(profile.isWhatsAppEnabled);
         setIsLoading(false);
@@ -52,16 +68,86 @@ export const ProfileSettingsView: React.FC = () => {
     fetchProfile();
   }, []);
 
+  const handleSaveUsername = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault();
+    const cleanUsername = usernameInput.trim();
+    if (cleanUsername.length < 3) {
+      toast.warning('O nome de usuário deve conter no mínimo 3 caracteres.');
+      return;
+    }
+    if (cleanUsername.length > 30) {
+      toast.warning('O nome de usuário deve conter no máximo 30 caracteres.');
+      return;
+    }
+
+    setIsSavingUsername(true);
+    try {
+      await userService.updateUsername(cleanUsername);
+      if (userProfile) {
+        setUserProfile({ ...userProfile, username: cleanUsername });
+      }
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+      toast.success('Nome de usuário atualizado com sucesso!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error?.message || error.message || 'Falha ao atualizar nome de usuário');
+    } finally {
+      setIsSavingUsername(false);
+    }
+  };
+
   const handleSavePhone = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    setIsSaving(true);
+    const cleanPhone = phoneNumberInput.trim();
+    if (cleanPhone && (cleanPhone.length < 10 || cleanPhone.length > 15)) {
+      toast.warning('Informe um número de telefone válido com DDD (10 a 15 dígitos).');
+      return;
+    }
+
+    setIsSavingPhone(true);
     try {
-      await userService.updatePhone(phoneNumberInput);
+      await userService.updatePhone(cleanPhone);
+      if (userProfile) {
+        setUserProfile({ ...userProfile, phoneNumber: cleanPhone });
+      }
       toast.success('Número de WhatsApp atualizado com sucesso!');
     } catch (error: any) {
-      toast.error(error.message || 'Falha ao salvar telefone');
+      toast.error(error.response?.data?.error?.message || error.message || 'Falha ao salvar telefone');
     } finally {
-      setIsSaving(false);
+      setIsSavingPhone(false);
+    }
+  };
+
+  const handleUpdatePassword = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (!currentPassword) {
+      toast.warning('Informe a sua senha atual.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.warning('A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.warning('A confirmação da nova senha não confere.');
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      await userService.updatePassword({
+        currentPassword,
+        newPassword
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success('Senha de acesso alterada com sucesso!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error?.message || error.message || 'Falha ao alterar senha');
+    } finally {
+      setIsSavingPassword(false);
     }
   };
 
@@ -101,7 +187,7 @@ export const ProfileSettingsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl animate-fadeIn">
+    <div className="space-y-8 max-w-5xl animate-fadeIn transition-all duration-300">
       <ConfirmationModal
         isOpen={isRegenerateModalOpen}
         title="Revogar e Gerar Nova Chave de API"
@@ -113,13 +199,13 @@ export const ProfileSettingsView: React.FC = () => {
         onCancel={() => setIsRegenerateModalOpen(false)}
       />
 
-      <div>
+      <div className="border-b border-slate-800 pb-6">
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
           <ShieldCheck className="h-7 w-7 text-emerald-400" />
-          <span>Configurações da Conta & Telemetria da API</span>
+          <span>Configurações do Perfil & Telemetria da API</span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Acompanhe o consumo da sua cota de requisições, gerencie sua chave de acesso e personalize os alertas no WhatsApp.
+          Gerencie suas credenciais de acesso, personalize seus canais de alerta no WhatsApp e acompanhe o consumo das suas requisições.
         </p>
       </div>
 
@@ -131,13 +217,13 @@ export const ProfileSettingsView: React.FC = () => {
         <div className="space-y-6">
           {userProfile && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg transition-all duration-300 hover:border-slate-700">
                 <span className="text-[11px] font-medium text-slate-400">Titular da Conta</span>
                 <p className="mt-1 text-lg font-bold text-white truncate">{userProfile.username}</p>
                 <div className="mt-1 text-xs text-slate-500 truncate">{userProfile.email}</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg transition-all duration-300 hover:border-slate-700">
                 <span className="text-[11px] font-medium text-slate-400">Plano & Privilégios</span>
                 <p className="mt-1 text-lg font-bold text-emerald-400">
                   {userProfile.role || userProfile.privilege?.toUpperCase()}
@@ -145,7 +231,7 @@ export const ProfileSettingsView: React.FC = () => {
                 <div className="mt-1 text-xs text-slate-500">Acesso completo à API REST & WhatsApp</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg transition-all duration-300 hover:border-slate-700">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-medium text-slate-400">Cota de Monitoramento</span>
                   <Bell className="h-4 w-4 text-emerald-400" />
@@ -158,7 +244,255 @@ export const ProfileSettingsView: React.FC = () => {
             </div>
           )}
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-lg transition-all duration-300 hover:border-slate-700">
+              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-400">
+                  <User className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Dados do Perfil</h2>
+                  <p className="text-xs text-slate-400">
+                    Altere seu nome de exibição no sistema e nos relatórios.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveUsername} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Nome de Usuário
+                  </label>
+                  <input
+                    type="text"
+                    minLength={3}
+                    maxLength={30}
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="Ex: investidor_pro"
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-500 mt-1">
+                    <span>Mínimo de 3 caracteres</span>
+                    <span>{usernameInput.length}/30</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    E-mail Cadastrado (Somente Leitura)
+                  </label>
+                  <input
+                    type="email"
+                    readOnly
+                    value={userProfile?.email || ''}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-2.5 text-xs text-slate-400 outline-none cursor-not-allowed select-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingUsername || usernameInput === userProfile?.username}
+                  className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-xs font-bold text-slate-950 transition disabled:opacity-50"
+                >
+                  {isSavingUsername ? 'Salvando...' : 'Atualizar Nome'}
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-lg transition-all duration-300 hover:border-slate-700">
+              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                <div className="rounded-xl bg-amber-500/10 p-2.5 text-amber-400">
+                  <Lock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Segurança & Senha</h2>
+                  <p className="text-xs text-slate-400">
+                    Altere sua senha de autenticação na plataforma.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdatePassword} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Senha Atual
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswordFields ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Digite sua senha atual"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Nova Senha
+                    </label>
+                    <input
+                      type={showPasswordFields ? 'text' : 'password'}
+                      minLength={6}
+                      maxLength={60}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Confirmar Senha
+                    </label>
+                    <input
+                      type={showPasswordFields ? 'text' : 'password'}
+                      minLength={6}
+                      maxLength={60}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a nova senha"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordFields(!showPasswordFields)}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center gap-1"
+                  >
+                    {showPasswordFields ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    <span>{showPasswordFields ? 'Ocultar caracteres' : 'Exibir caracteres'}</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingPassword || !currentPassword || !newPassword}
+                    className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 transition disabled:opacity-50"
+                  >
+                    {isSavingPassword ? 'Atualizando...' : 'Alterar Senha'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-lg transition-all duration-300 hover:border-slate-700">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <div className="rounded-xl bg-teal-500/10 p-2.5 text-teal-400">
+                <Key className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white">Chave de Acesso da API (X-API-TOKEN)</h2>
+                <p className="text-xs text-slate-400">
+                  Sua credencial para planilhas, scripts e integrações externas. Campo protegido contra alterações acidentais.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    readOnly
+                    value={userProfile?.apiKey || 'yieldiq_****************'}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 pr-10 font-mono text-xs text-slate-300 outline-none select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition"
+                    title={showApiKey ? 'Ocultar chave' : 'Mostrar chave'}
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCopyApiKey}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 transition border border-slate-700"
+                >
+                  {isCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  <span>{isCopied ? 'Copiado!' : 'Copiar Chave'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRegenerateModalOpen(true)}
+                  className="rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white transition"
+                >
+                  Gerar Nova Chave
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5 shadow-lg transition-all duration-300 hover:border-slate-700">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-400">
+                <Smartphone className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white">Canal de Destino no WhatsApp</h2>
+                <p className="text-xs text-slate-400">
+                  Informe o número do celular com DDD para receber avisos em tempo real de proventos e cotações.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePhone} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Número de Celular com DDD
+                </label>
+                <div className="relative max-w-md">
+                  <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                  <input
+                    type="text"
+                    minLength={10}
+                    maxLength={15}
+                    value={phoneNumberInput}
+                    onChange={(e) => setPhoneNumberInput(e.target.value)}
+                    placeholder="Ex: 11999998888"
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-500 mt-1 max-w-md">
+                  <span>Mínimo 10 dígitos (DDD + número)</span>
+                  <span>{phoneNumberInput.length}/15</span>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <CustomSwitch
+                  checked={isWhatsAppEnabled}
+                  onChange={handleToggleWhatsApp}
+                  label="Habilitar envio de alertas para este número"
+                  description="Receber avisos em tempo real de proventos e variações anormais"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingPhone}
+                  className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-xs font-bold text-slate-950 transition disabled:opacity-50"
+                >
+                  {isSavingPhone ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-6 shadow-lg transition-all duration-300 hover:border-slate-700">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-400">
@@ -171,11 +505,6 @@ export const ProfileSettingsView: React.FC = () => {
                   </p>
                 </div>
               </div>
-
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Status da API: 99.9% Uptime</span>
-              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -212,9 +541,9 @@ export const ProfileSettingsView: React.FC = () => {
                   <span>Taxa de Sucesso (200 OK)</span>
                   <Server className="h-4 w-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-extrabold text-emerald-400">99.8%</div>
+                <div className="text-2xl font-extrabold text-emerald-400">Excelente</div>
                 <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '99.8%' }} />
+                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: '100%' }} />
                 </div>
                 <span className="text-[10px] text-slate-500 block">Zero falhas de infraestrutura</span>
               </div>
@@ -266,111 +595,6 @@ export const ProfileSettingsView: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="rounded-xl bg-teal-500/10 p-2.5 text-teal-400">
-                <Key className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-white">Chave de Acesso da API (X-API-TOKEN)</h2>
-                <p className="text-xs text-slate-400">
-                  Sua chave secreta para integrações automatizadas. O campo é somente leitura para prevenir alterações acidentais.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    readOnly
-                    value={userProfile?.apiKey || 'yieldiq_****************'}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 pr-10 font-mono text-xs text-slate-300 outline-none select-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition"
-                    title={showApiKey ? 'Ocultar chave' : 'Mostrar chave'}
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCopyApiKey}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 transition border border-slate-700"
-                >
-                  {isCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                  <span>{isCopied ? 'Copiado!' : 'Copiar Chave'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsRegenerateModalOpen(true)}
-                  className="rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white transition"
-                >
-                  Gerar Nova Chave
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-400">
-                <Smartphone className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-white">Canal de Destino no WhatsApp</h2>
-                <p className="text-xs text-slate-400">
-                  Informe o número do seu celular com DDD (ex: 11999998888) para receber os alertas das suas regras ativas.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSavePhone} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Número de Celular com DDD
-                </label>
-                <div className="relative max-w-md">
-                  <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
-                  <input
-                    type="text"
-                    minLength={10}
-                    maxLength={15}
-                    value={phoneNumberInput}
-                    onChange={(e) => setPhoneNumberInput(e.target.value)}
-                    placeholder="Ex: 11999998888"
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-1">
-                <CustomSwitch
-                  checked={isWhatsAppEnabled}
-                  onChange={handleToggleWhatsApp}
-                  label="Habilitar envio de alertas para este número"
-                  description="Receber avisos em tempo real de proventos e cotações"
-                />
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-xs font-bold text-slate-950 transition disabled:opacity-50"
-                >
-                  {isSaving ? 'Salvando...' : 'Salvar Alterações'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

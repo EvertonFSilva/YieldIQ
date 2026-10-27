@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, ShieldCheck, Lock } from 'lucide-react';
 
 interface PrivacyModalProperties {
@@ -7,11 +7,29 @@ interface PrivacyModalProperties {
 }
 
 export const PrivacyModal: React.FC<PrivacyModalProperties> = ({ isOpen, onClose }) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8 shadow-2xl space-y-6">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn transition-all duration-300"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8 shadow-2xl space-y-6"
+      >
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-teal-500/10 p-2 text-teal-400">
@@ -25,6 +43,7 @@ export const PrivacyModal: React.FC<PrivacyModalProperties> = ({ isOpen, onClose
 
           <button
             onClick={onClose}
+            aria-label="Fechar Política de Privacidade"
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
           >
             <X className="h-5 w-5" />
@@ -68,7 +87,7 @@ export const PrivacyModal: React.FC<PrivacyModalProperties> = ({ isOpen, onClose
             onClick={onClose}
             className="rounded-xl bg-teal-500 hover:bg-teal-400 px-5 py-2 text-xs font-bold text-slate-950 transition"
           >
-            Fechar
+            Compreendi a Política
           </button>
         </div>
       </div>

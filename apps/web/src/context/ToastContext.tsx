@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastItem {
   id: string;
@@ -14,6 +14,7 @@ interface ToastContextType {
   success: (message: string) => void;
   error: (message: string) => void;
   info: (message: string) => void;
+  warning: (message: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -40,9 +41,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const success = useCallback((message: string) => showToast(message, 'success'), [showToast]);
   const error = useCallback((message: string) => showToast(message, 'error'), [showToast]);
   const info = useCallback((message: string) => showToast(message, 'info'), [showToast]);
+  const warning = useCallback((message: string) => showToast(message, 'warning'), [showToast]);
 
   return (
-    <ToastContext.Provider value={{ showToast, success, error, info }}>
+    <ToastContext.Provider value={{ showToast, success, error, info, warning }}>
       {children}
       <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map((toast) => (
@@ -53,12 +55,15 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 ? 'border-emerald-500/40 bg-slate-900/95 text-emerald-300 shadow-emerald-500/10'
                 : toast.type === 'error'
                 ? 'border-rose-500/40 bg-slate-900/95 text-rose-300 shadow-rose-500/10'
+                : toast.type === 'warning'
+                ? 'border-amber-500/40 bg-slate-900/95 text-amber-300 shadow-amber-500/10'
                 : 'border-teal-500/40 bg-slate-900/95 text-teal-300 shadow-teal-500/10'
             }`}
           >
             <div className="flex items-center gap-2.5">
               {toast.type === 'success' && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />}
               {toast.type === 'error' && <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />}
+              {toast.type === 'warning' && <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />}
               {toast.type === 'info' && <Info className="h-5 w-5 shrink-0 text-teal-400" />}
               <span className="text-xs font-semibold leading-relaxed text-slate-100">{toast.message}</span>
             </div>

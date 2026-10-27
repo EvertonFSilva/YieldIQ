@@ -69,7 +69,7 @@ const AppContent: React.FC = () => {
               </p>
               <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-medium">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>Sistemas Operacionais &bull; 99.9% Uptime</span>
+                <span>Plataforma Online &bull; Dados em Tempo Real</span>
               </div>
             </div>
 

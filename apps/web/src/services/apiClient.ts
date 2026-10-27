@@ -114,12 +114,20 @@ export const userService = {
     return response.data.data;
   },
 
+  async updateUsername(username: string): Promise<void> {
+    await apiClient.put('/auth/profile/username', { username });
+  },
+
   async updatePhone(phoneNumber: string): Promise<void> {
     await apiClient.put('/auth/profile/phone', { phoneNumber });
   },
 
   async updateWhatsApp(isEnabled: boolean): Promise<void> {
     await apiClient.put('/auth/profile/whatsapp', { enabled: isEnabled });
+  },
+
+  async updatePassword(payload: { currentPassword: string; newPassword: string }): Promise<void> {
+    await apiClient.put('/auth/profile/password', payload);
   },
 
   async regenerateApiKey(): Promise<string> {

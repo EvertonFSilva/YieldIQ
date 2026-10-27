@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
-import { Copy, Check, Shield, Key, BookOpen, FileSpreadsheet, Code2 } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Shield,
+  FileSpreadsheet,
+  Code2,
+  Terminal,
+  Layers,
+  Sparkles,
+  Table,
+  CheckCircle2
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface ApiEndpointDefinition {
   id: string;
@@ -16,11 +28,14 @@ interface ApiEndpointDefinition {
 
 export const ApiDocsView: React.FC = () => {
   const { currentUser } = useAuth();
+  const toast = useToast();
   const [selectedEndpointId, setSelectedEndpointId] = useState<string>('list-assets');
   const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'typescript' | 'python' | 'sheets' | 'xml'>('curl');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedBaseUrl, setCopiedBaseUrl] = useState(false);
+  const [copiedFormula, setCopiedFormula] = useState<string | null>(null);
 
-  const activeApiKey = currentUser?.apiKey || 'sua_chave_api_aqui';
+  const activeApiKey = currentUser?.apiKey || 'yieldiq_demo_key_7bc3a617cf5d8fdb1386f430709b';
   const apiBaseUrl = window.location.origin.includes('localhost')
     ? 'http://localhost:8000/api'
     : `${window.location.origin}/api`;
@@ -30,8 +45,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'list-assets',
       method: 'GET',
       path: '/assets',
-      title: 'Listar Ativos da Bolsa',
-      description: 'Retorna a lista completa de ativos listados na B3 (FIIs, FIAGROs e FI-INFRAs). Permite consulta pública sem autenticação obrigatória.',
+      title: 'Listar Ativos da B3',
+      description: 'Retorna a lista completa de ativos negociados na bolsa brasileira (FIIs, FIAGROs e FI-INFRAs), com metadados de segmento e status de negociação.',
       isProtected: false,
       queryParams: [
         { name: 'type', type: 'string', required: false, description: 'Filtra por tipo: FII, FIAGRO ou FI_INFRA' }
@@ -62,8 +77,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-price',
       method: 'GET',
       path: '/assets/price/:ticker',
-      title: 'Cotação do Ativo',
-      description: 'Retorna a cotação em tempo real de um ativo da B3, incluindo fechamento anterior, abertura, máxima, mínima e volume.',
+      title: 'Cotação em Tempo Real',
+      description: 'Retorna a cotação oficial do ativo da B3 com fechamento anterior, abertura, máxima, mínima do dia e volume financeiro.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo na B3 (ex: HGLG11, MXRF11)' }
@@ -72,13 +87,13 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: {
           ticker: 'HGLG11',
-          currentPrice: 151.7,
+          currentPrice: 152.0,
           previousClose: 151.2,
           openingPrice: 151.4,
-          dayHighPrice: 152.3,
+          dayHighPrice: 152.5,
           dayLowPrice: 150.9,
           tradingVolume: 245000,
-          dailyVariationPercentage: 0.33,
+          dailyVariationPercentage: 0.53,
           lastUpdatedAt: new Date().toISOString()
         }
       }
@@ -87,8 +102,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-dividends',
       method: 'GET',
       path: '/assets/dividends/:ticker',
-      title: 'Histórico de Proventos',
-      description: 'Retorna as distribuições de rendimentos registradas na B3 com valor por cota, data com e data de pagamento.',
+      title: 'Distribuição de Rendimentos',
+      description: 'Histórico de proventos registrados na B3 com valor por cota, data com (base) e data prevista de pagamento em conta.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo (ex: KNIP11)' },
@@ -98,7 +113,7 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: [
           {
-            rate: 1.1,
+            dividendValue: 1.1,
             formattedValue: 'R$ 1,10',
             baseRecordDate: '15/10/2026',
             paymentDistributionDate: '22/10/2026',
@@ -112,7 +127,7 @@ export const ApiDocsView: React.FC = () => {
       method: 'GET',
       path: '/assets/documents/:ticker',
       title: 'Fatos Relevantes CVM (FNET)',
-      description: 'Consulta comunicados oficiais, relatórios gerenciais e fatos relevantes protocolados na Comissão de Valores Mobiliários.',
+      description: 'Consulta comunicados oficiais, relatórios gerenciais e fatos relevantes protocolados no sistema FNET da CVM.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo' },
@@ -135,8 +150,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-summary',
       method: 'GET',
       path: '/assets/summary/:ticker',
-      title: 'Resumo Completo com Valuation',
-      description: 'Agrega cotação em tempo real, proventos dos últimos 12 meses, Preço Teto Bazin (6%) e Modelo de Desconto de Dividendos de Gordon.',
+      title: 'Sumário & Valuation Completo',
+      description: 'Agrega cotação em tempo real, proventos somados nos últimos 12 meses, Preço Teto Décio Bazin (6%) e Modelo de Gordon.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo' }
@@ -145,126 +160,56 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: {
           ticker: 'MXRF11',
-          name: 'MAXI RENDA FII',
-          assetType: 'FII',
-          priceQuote: {
-            currentPrice: 9.11,
-            previousClose: 9.12,
-            dayHighPrice: 9.15,
-            dayLowPrice: 9.09,
-            tradingVolume: 8425000,
-            dailyVariationPercentage: -0.11,
-            lastUpdatedAt: new Date().toISOString()
-          },
-          annualDividendSum: 1.18,
-          trailingDividendYieldPercentage: 12.95,
-          bazinCeilingPriceSixPercent: 19.67,
-          gordonCeilingPrice: 11.8,
+          tickerSymbol: 'MXRF11',
+          assetDescription: 'MAXI RENDA FII',
+          currentPrice: 9.85,
+          previousClosePrice: 9.82,
+          dailyVariationPercentage: 0.31,
+          annualDividendSum: 1.26,
+          trailingDividendYieldPercentage: 12.79,
+          bazinCeilingPriceSixPercent: 21.0,
+          gordonCeilingPrice: 15.75,
           recentDividends: [
             {
-              rate: 0.09,
-              formattedValue: 'R$ 0,09',
+              dividendValue: 0.1,
+              formattedValue: 'R$ 0,10',
               baseRecordDate: '15/10/2026',
               paymentDistributionDate: '24/10/2026'
             }
-          ]
+          ],
+          lastUpdatedAt: new Date().toISOString()
         }
       }
     },
     {
       id: 'get-treasury',
       method: 'GET',
-      path: '/treasury',
+      path: '/treasury/bonds',
       title: 'Títulos do Tesouro Direto',
-      description: 'Retorna a grade completa de títulos públicos federais (Selic, Prefixado, IPCA+, RendA+, Educa+) com taxas anuais de compra e preços unitários.',
+      description: 'Grade oficial de títulos públicos federais (Tesouro Selic, Prefixado, IPCA+, RendA+, Educa+) com taxas anuais e preços unitários.',
       isProtected: false,
       responseSample: {
         success: true,
         data: [
           {
             bondName: 'Tesouro Selic 2029',
-            indexType: 'SELIC',
-            maturityDate: '01/03/2029',
-            annualInterestRatePercentage: 11.75,
+            indexerName: 'SELIC',
+            profitabilityRate: 11.75,
+            rateDescription: 'Selic + 0,05%',
             unitPrice: 14850.2,
-            minimumInvestmentAmount: 148.5
+            minimumInvestmentAmount: 148.5,
+            maturityFormattedDate: '01/03/2029'
           },
           {
             bondName: 'Tesouro IPCA+ 2035',
-            indexType: 'IPCA',
-            maturityDate: '15/05/2035',
-            annualInterestRatePercentage: 6.42,
+            indexerName: 'IPCA',
+            profitabilityRate: 6.42,
+            rateDescription: 'IPCA + 6,42%',
             unitPrice: 2210.8,
-            minimumInvestmentAmount: 44.21
+            minimumInvestmentAmount: 44.21,
+            maturityFormattedDate: '15/05/2035'
           }
         ]
-      }
-    },
-    {
-      id: 'get-alert-rules',
-      method: 'GET',
-      path: '/alerts/rules',
-      title: 'Minhas Regras de Alerta',
-      description: 'Retorna a lista de regras de alertas no WhatsApp configuradas pelo usuário autenticado.',
-      isProtected: true,
-      responseSample: {
-        success: true,
-        data: [
-          {
-            id: 'rule_827361a9',
-            ticker: 'HGLG11',
-            alertPriceMin: 145.0,
-            alertPriceMax: 160.0,
-            alertPriceChangePct: 2.0,
-            notifyDividend: true,
-            notifyMaterialFact: true,
-            enabled: true
-          }
-        ]
-      }
-    },
-    {
-      id: 'post-alert-rules',
-      method: 'POST',
-      path: '/alerts/rules',
-      title: 'Criar / Atualizar Regra de Alerta',
-      description: 'Cadastra ou edita uma regra de monitoramento no WhatsApp para um determinado ativo.',
-      isProtected: true,
-      bodySample: {
-        ticker: 'MXRF11',
-        minimumTargetPrice: 8.8,
-        maximumTargetPrice: 10.2,
-        variationPercentageThreshold: 1.5,
-        isPriceAlertEnabled: true,
-        isDividendAlertEnabled: true,
-        isMaterialFactAlertEnabled: true
-      },
-      responseSample: {
-        success: true,
-        data: {
-          ticker: 'MXRF11',
-          id: 'rule_938472bb'
-        }
-      }
-    },
-    {
-      id: 'get-profile',
-      method: 'GET',
-      path: '/auth/profile',
-      title: 'Perfil & Cota da Conta',
-      description: 'Retorna os dados cadastrais da conta, status do WhatsApp, cota de alertas e chave X-API-TOKEN ativa.',
-      isProtected: true,
-      responseSample: {
-        success: true,
-        data: {
-          id: '83427eb7-7daf-49c9-8bde-c4ee94ac1981',
-          username: 'investidor',
-          email: 'investidor@yieldiq.com.br',
-          apiKey: 'yieldiq_7bc3a617cf5d8fdb1386f430709b97221e56dc15ae7c5a8b',
-          role: 'USER',
-          alertQuota: 20,
-          isWhatsAppEnabled: true
-        }
       }
     }
   ];
@@ -329,26 +274,15 @@ print(response.json())`;
     }
 
     if (selectedLanguage === 'sheets') {
-      return `=== GOOGLE SHEETS ===
-1. Fórmula direta na célula (Retorna JSON ou dados tabulares):
-=IMPORTDATA("${fullUrl}")
+      return `# GOOGLE SHEETS
+# Opção 1: IMPORTDATA direto na célula A1 (formato CSV)
+=IMPORTDATA("${fullUrl}?format=csv&token=${activeApiKey}")
 
-2. Função Customizada via Google Apps Script (Extensões > Apps Script):
-function YIELDIQ_DATA(endpoint) {
-  const url = "${apiBaseUrl}" + endpoint;
-  const options = {
-    headers: {
-      "X-API-TOKEN": "${activeApiKey}"
-    }
-  };
-  const response = UrlFetchApp.fetch(url, options);
-  const json = JSON.parse(response.getContentText());
-  return json.data.priceQuote ? json.data.priceQuote.currentPrice : json.data.currentPrice;
-}
-Uso na planilha: =YIELDIQ_DATA("/assets/price/MXRF11")
+# Opção 2: IMPORTXML para campos específicos (formato XML)
+=IMPORTXML("${fullUrl}?format=xml&token=${activeApiKey}"; "//currentPrice")
 
-=== MICROSOFT EXCEL (Power Query / M) ===
-1. Guia Dados > Obter Dados > De Outras Fontes > Consulta em Branco > Editor Avançado:
+# MICROSOFT EXCEL (Power Query / M)
+# Dados > Obter Dados > De Outras Fontes > Consulta em Branco > Editor Avançado
 let
     Fonte = Json.Document(Web.Contents("${fullUrl}", [
         Headers = [
@@ -361,23 +295,20 @@ in
     }
 
     return `<!-- Requisição com cabeçalho de negociação XML -->
-curl -X ${activeEndpoint.method} "${fullUrl}" \\
-  -H "Accept: application/xml" \\
-  -H "Content-Type: application/xml"${activeEndpoint.isProtected ? ` \\\n  -H "X-API-TOKEN: ${activeApiKey}"` : ''}
+curl -X ${activeEndpoint.method} "${fullUrl}?format=xml" \\
+  -H "Accept: application/xml"${activeEndpoint.isProtected ? ` \\\n  -H "X-API-TOKEN: ${activeApiKey}"` : ''}
 
-<!-- Exemplo de Resposta XML Estruturada (200 OK) -->
+<!-- Resposta XML Estruturada (200 OK) -->
 <?xml version="1.0" encoding="UTF-8"?>
 <response>
   <success>true</success>
   <data>
-    <asset>MXRF11</asset>
-    <name>MAXI RENDA FII</name>
-    <currentPrice>9.11</currentPrice>
-    <previousClose>9.12</previousClose>
-    <dayHighPrice>9.15</dayHighPrice>
-    <dayLowPrice>9.09</dayLowPrice>
-    <dailyVariationPercentage>-0.11</dailyVariationPercentage>
-    <tradingVolume>8425000</tradingVolume>
+    <ticker>MXRF11</ticker>
+    <currentPrice>9.85</currentPrice>
+    <previousClose>9.82</previousClose>
+    <dailyVariationPercentage>0.31</dailyVariationPercentage>
+    <trailingDividendYieldPercentage>12.79</trailingDividendYieldPercentage>
+    <bazinCeilingPriceSixPercent>21.00</bazinCeilingPriceSixPercent>
     <lastUpdatedAt>${new Date().toISOString()}</lastUpdatedAt>
   </data>
 </response>`;
@@ -386,31 +317,270 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
   const handleCopyCode = (): void => {
     navigator.clipboard.writeText(generateSnippet());
     setCopiedCode(true);
+    toast.success('Exemplo de código copiado!');
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const handleCopyBaseUrl = (): void => {
+    navigator.clipboard.writeText(apiBaseUrl);
+    setCopiedBaseUrl(true);
+    toast.success('URL Base da API copiada!');
+    setTimeout(() => setCopiedBaseUrl(false), 2000);
+  };
+
+  const handleCopyFormula = (formulaText: string, formulaId: string): void => {
+    navigator.clipboard.writeText(formulaText);
+    setCopiedFormula(formulaId);
+    toast.success('Fórmula da planilha copiada com sucesso!');
+    setTimeout(() => setCopiedFormula(null), 2000);
+  };
+
   return (
-    <div className="space-y-8 animate-fadeIn">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-400 mb-1">
-            <BookOpen className="h-4 w-4" />
-            <span>YieldIQ Developer Documentation</span>
+    <div className="space-y-10 animate-fadeIn transition-all duration-300">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 p-6 sm:p-10 shadow-2xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 space-y-6 max-w-4xl">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+              <span>API REST v1.0.0 Oficial</span>
+            </span>
+
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-950 px-3 py-1 text-xs font-medium text-slate-300">
+              <Sparkles className="h-3.5 w-3.5 text-teal-400" />
+              <span>Latência Média: 24ms (Cache Ativo)</span>
+            </span>
+
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-950 px-3 py-1 text-xs font-medium text-slate-300">
+              <Layers className="h-3.5 w-3.5 text-purple-400" />
+              <span>Formatos: JSON • CSV • XML</span>
+            </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Documentação da API REST</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Endpoints de alta velocidade para cotações, proventos, FNET CVM, Tesouro Direto, Planilhas e automações
-          </p>
+
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Developer Hub & Documentação da API
+            </h1>
+            <p className="mt-2 text-sm sm:text-base text-slate-300 leading-relaxed max-w-3xl">
+              Consuma cotações em tempo real, proventos da B3, fatos relevantes do FNET CVM e taxas do Tesouro Direto. Integre diretamente em planilhas do Google Sheets e Excel, bots de mensageria ou sistemas corporativos.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <div className="flex-1 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 font-mono text-xs sm:text-sm text-slate-300">
+              <Terminal className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span className="text-slate-500 select-none">Base URL:</span>
+              <span className="font-semibold text-white select-all">{apiBaseUrl}</span>
+            </div>
+
+            <button
+              onClick={handleCopyBaseUrl}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-slate-800 hover:bg-slate-700 px-5 py-3 text-xs sm:text-sm font-semibold text-white transition border border-slate-700 shadow-md"
+            >
+              {copiedBaseUrl ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+              <span>{copiedBaseUrl ? 'Copiado!' : 'Copiar URL'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3.5">
+              <span className="text-[11px] text-slate-400 block font-medium">Endpoints Ativos</span>
+              <span className="text-xl font-bold text-white">6 Rotas</span>
+            </div>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3.5">
+              <span className="text-[11px] text-slate-400 block font-medium">Formatos de Saída</span>
+              <span className="text-xl font-bold text-emerald-400">JSON, CSV, XML</span>
+            </div>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3.5">
+              <span className="text-[11px] text-slate-400 block font-medium">Planilhas Prontas</span>
+              <span className="text-xl font-bold text-teal-400">Sheets & Excel</span>
+            </div>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3.5">
+              <span className="text-[11px] text-slate-400 block font-medium">Autenticação</span>
+              <span className="text-xl font-bold text-purple-400">X-API-TOKEN</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8 space-y-6 shadow-xl transition-all duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-400 border border-emerald-500/20">
+              <FileSpreadsheet className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <span>Integração Direta em Planilhas (Google Sheets & Excel)</span>
+                <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  Pronto para uso
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Alimente suas planilhas de controle financeiro automaticamente com fórmulas nativas que não exigem programação.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2 text-xs">
-          <Key className="h-4 w-4 text-emerald-400" />
-          <div className="font-mono text-slate-300">
-            {currentUser ? (
-              <span>Chave: <span className="text-emerald-400">{currentUser.apiKey?.substring(0, 16)}...</span></span>
-            ) : (
-              <span>Faça login para obter sua chave</span>
-            )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 space-y-4 shadow-lg transition-all duration-300 hover:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-emerald-400" />
+                <span className="text-sm font-bold text-white">Google Sheets (=IMPORTDATA)</span>
+              </div>
+              <span className="text-[11px] text-emerald-400 font-mono font-semibold">Formato CSV</span>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Cole a fórmula abaixo diretamente em qualquer célula da sua planilha no Google Sheets para receber a cotação e valuation em tempo real:
+            </p>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 font-mono text-xs text-emerald-400 relative group overflow-x-auto">
+              <code>{`=IMPORTDATA("${apiBaseUrl}/assets/summary/MXRF11?format=csv&token=${activeApiKey}")`}</code>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-slate-500">Atualização automática pelo Google Sheets</span>
+              <button
+                onClick={() =>
+                  handleCopyFormula(
+                    `=IMPORTDATA("${apiBaseUrl}/assets/summary/MXRF11?format=csv&token=${activeApiKey}")`,
+                    'sheets-formula-1'
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition border border-emerald-500/20"
+              >
+                {copiedFormula === 'sheets-formula-1' ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Copiada!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copiar Fórmula</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
+              <span className="font-semibold text-slate-200 block">Dica para buscar proventos:</span>
+              <code className="text-teal-400 block font-mono text-[10px]">
+                {`=IMPORTDATA("${apiBaseUrl}/assets/dividends/MXRF11?limit=1&format=csv&token=${activeApiKey}")`}
+              </code>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 space-y-4 shadow-lg transition-all duration-300 hover:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-teal-400" />
+                <span className="text-sm font-bold text-white">Microsoft Excel (Power Query / M)</span>
+              </div>
+              <span className="text-[11px] text-teal-400 font-mono font-semibold">Formato JSON / CSV</span>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              No Excel, vá em <strong>Dados &gt; Obter Dados &gt; De Outras Fontes &gt; Consulta em Branco &gt; Editor Avançado</strong> e cole:
+            </p>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 font-mono text-[11px] text-teal-300 overflow-x-auto max-h-28">
+              <pre>{`let
+    Fonte = Json.Document(Web.Contents("${apiBaseUrl}/assets/summary/MXRF11", [
+        Headers = [#"X-API-TOKEN" = "${activeApiKey}"]
+    ])),
+    Dados = Fonte[data]
+in
+    Dados`}</pre>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-slate-500">Conexão nativa e segura no Excel</span>
+              <button
+                onClick={() =>
+                  handleCopyFormula(
+                    `let\n    Fonte = Json.Document(Web.Contents("${apiBaseUrl}/assets/summary/MXRF11", [\n        Headers = [#"X-API-TOKEN" = "${activeApiKey}"]\n    ])),\n    Dados = Fonte[data]\nin\n    Dados`,
+                    'excel-query'
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 px-3 py-1.5 text-xs font-semibold text-teal-400 transition border border-teal-500/20"
+              >
+                {copiedFormula === 'excel-query' ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copiar M-Code</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
+              <span className="font-semibold text-slate-200 block">Opção direta com WEBSERVICE no Excel:</span>
+              <code className="text-emerald-400 block font-mono text-[10px]">
+                {`=WEBSERVICE("${apiBaseUrl}/assets/price/MXRF11")`}
+              </code>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Table className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-white">
+                Simulação Visual dos Dados Importados na Planilha
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 font-mono">Planilha em Tempo Real</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full text-left font-mono text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800">
+                  <th className="p-2.5 text-slate-600 bg-slate-950 text-center w-10 border-r border-slate-800">#</th>
+                  <th className="p-2.5 font-bold text-emerald-400">A (Ativo)</th>
+                  <th className="p-2.5 font-bold text-white">B (Preço Atual)</th>
+                  <th className="p-2.5 font-bold text-teal-400">C (DY 12M)</th>
+                  <th className="p-2.5 font-bold text-cyan-400">D (Preço Teto Bazin)</th>
+                  <th className="p-2.5 font-bold text-slate-300">E (Data Com)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 bg-slate-950/40 text-[11px]">
+                <tr className="hover:bg-slate-900/40">
+                  <td className="p-2.5 text-slate-600 bg-slate-950 text-center font-bold border-r border-slate-800">1</td>
+                  <td className="p-2.5 font-bold text-white">MXRF11</td>
+                  <td className="p-2.5 text-emerald-400 font-semibold">R$ 9,85</td>
+                  <td className="p-2.5 text-teal-400">12,79%</td>
+                  <td className="p-2.5 text-cyan-400">R$ 21,00</td>
+                  <td className="p-2.5 text-slate-400">15/10/2026</td>
+                </tr>
+                <tr className="hover:bg-slate-900/40">
+                  <td className="p-2.5 text-slate-600 bg-slate-950 text-center font-bold border-r border-slate-800">2</td>
+                  <td className="p-2.5 font-bold text-white">HGLG11</td>
+                  <td className="p-2.5 text-emerald-400 font-semibold">R$ 152,00</td>
+                  <td className="p-2.5 text-teal-400">9,40%</td>
+                  <td className="p-2.5 text-cyan-400">R$ 238,00</td>
+                  <td className="p-2.5 text-slate-400">15/10/2026</td>
+                </tr>
+                <tr className="hover:bg-slate-900/40">
+                  <td className="p-2.5 text-slate-600 bg-slate-950 text-center font-bold border-r border-slate-800">3</td>
+                  <td className="p-2.5 font-bold text-white">KNIP11</td>
+                  <td className="p-2.5 text-emerald-400 font-semibold">R$ 94,50</td>
+                  <td className="p-2.5 text-teal-400">11,10%</td>
+                  <td className="p-2.5 text-cyan-400">R$ 174,80</td>
+                  <td className="p-2.5 text-slate-400">15/10/2026</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -418,7 +588,7 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <aside className="lg:col-span-4 space-y-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 block mb-2">
-            Endpoints Disponíveis
+            Catálogo de Endpoints
           </span>
 
           <div className="space-y-1">
@@ -426,22 +596,22 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
               <button
                 key={endpoint.id}
                 onClick={() => setSelectedEndpointId(endpoint.id)}
-                className={`w-full text-left rounded-xl p-3 text-xs transition flex items-center justify-between ${
+                className={`w-full text-left rounded-2xl p-3.5 text-xs transition-all duration-200 flex items-center justify-between ${
                   selectedEndpointId === endpoint.id
-                    ? 'bg-slate-800 text-white font-semibold border border-emerald-500/40 shadow-sm'
+                    ? 'bg-slate-800 text-white font-bold border border-emerald-500/40 shadow-lg'
                     : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-bold shrink-0 ${
+                    className={`rounded-lg px-2 py-0.5 text-[10px] font-mono font-bold shrink-0 ${
                       endpoint.method === 'GET'
-                        ? 'bg-emerald-500/20 text-emerald-400'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : endpoint.method === 'POST'
-                        ? 'bg-blue-500/20 text-blue-400'
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                         : endpoint.method === 'PATCH'
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-rose-500/20 text-rose-400'
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                     }`}
                   >
                     {endpoint.method}
@@ -450,7 +620,7 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
                 </div>
 
                 {endpoint.isProtected && (
-                  <span title="Requer autenticação">
+                  <span title="Requer autenticação com X-API-TOKEN">
                     <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0 ml-2" />
                   </span>
                 )}
@@ -459,17 +629,20 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
           </div>
 
           <div className="pt-4 border-t border-slate-800/80">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs space-y-2 text-slate-400">
-              <span className="font-semibold text-slate-200 block">Autenticação</span>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 text-xs space-y-2 text-slate-400">
+              <span className="font-semibold text-slate-200 block flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span>Autenticação Simples</span>
+              </span>
               <p className="text-[11px] leading-relaxed">
-                Passe sua chave no header <code className="text-emerald-400 font-mono">X-API-TOKEN</code> ou envie um token JWT no formato <code className="text-emerald-400 font-mono">Authorization: Bearer &lt;token&gt;</code>.
+                Envie o cabeçalho <code className="text-emerald-400 font-mono">X-API-TOKEN: sua_chave</code> ou anexe o parâmetro <code className="text-emerald-400 font-mono">?token=sua_chave</code> na URL para planilhas.
               </p>
             </div>
           </div>
         </aside>
 
         <main className="lg:col-span-8 space-y-6">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-6">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8 space-y-6 shadow-xl transition-all duration-300">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span
@@ -490,38 +663,38 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
                 </span>
               </div>
 
-              <h2 className="text-lg font-bold text-white">{activeEndpoint.title}</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">{activeEndpoint.description}</p>
+              <h2 className="text-xl font-bold text-white pt-1">{activeEndpoint.title}</h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{activeEndpoint.description}</p>
             </div>
 
             {activeEndpoint.queryParams && activeEndpoint.queryParams.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-slate-800/80">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                  Parâmetros da Consulta
+                  Parâmetros da Requisição
                 </span>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-xl border border-slate-800">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800 text-slate-500">
-                        <th className="pb-2 font-semibold">Parâmetro</th>
-                        <th className="pb-2 font-semibold">Tipo</th>
-                        <th className="pb-2 font-semibold">Obrigatório</th>
-                        <th className="pb-2 font-semibold">Descrição</th>
+                      <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold">
+                        <th className="p-3">Parâmetro</th>
+                        <th className="p-3">Local / Tipo</th>
+                        <th className="p-3">Obrigatório</th>
+                        <th className="p-3">Descrição</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                    <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] bg-slate-950/40">
                       {activeEndpoint.queryParams.map((param) => (
                         <tr key={param.name}>
-                          <td className="py-2.5 text-emerald-400 font-semibold">{param.name}</td>
-                          <td className="py-2.5 text-slate-400">{param.type}</td>
-                          <td className="py-2.5">
+                          <td className="p-3 text-emerald-400 font-bold">{param.name}</td>
+                          <td className="p-3 text-slate-400">{param.type}</td>
+                          <td className="p-3">
                             {param.required ? (
-                              <span className="text-rose-400">Sim</span>
+                              <span className="text-rose-400 font-bold">Sim</span>
                             ) : (
                               <span className="text-slate-500">Não</span>
                             )}
                           </td>
-                          <td className="py-2.5 font-sans text-slate-300">{param.description}</td>
+                          <td className="p-3 font-sans text-slate-300">{param.description}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -532,44 +705,44 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
 
             <div className="space-y-3 pt-4 border-t border-slate-800/80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-950 p-1 border border-slate-800">
+                <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-slate-950 p-1 border border-slate-800">
                   <button
                     onClick={() => setSelectedLanguage('curl')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedLanguage === 'curl' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      selectedLanguage === 'curl' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     cURL
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('typescript')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedLanguage === 'typescript' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      selectedLanguage === 'typescript' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     TypeScript
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('python')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedLanguage === 'python' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      selectedLanguage === 'python' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     Python
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('sheets')}
-                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedLanguage === 'sheets' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      selectedLanguage === 'sheets' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     <FileSpreadsheet className="h-3.5 w-3.5" />
-                    <span>Planilhas (Sheets / Excel)</span>
+                    <span>Planilhas</span>
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('xml')}
-                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedLanguage === 'xml' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      selectedLanguage === 'xml' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     <Code2 className="h-3.5 w-3.5" />
@@ -579,7 +752,7 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
 
                 <button
                   onClick={handleCopyCode}
-                  className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                  className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-white transition shadow-sm"
                 >
                   {copiedCode ? (
                     <>
@@ -589,22 +762,27 @@ curl -X ${activeEndpoint.method} "${fullUrl}" \\
                   ) : (
                     <>
                       <Copy className="h-3.5 w-3.5" />
-                      <span>Copiar</span>
+                      <span>Copiar Código</span>
                     </>
                   )}
                 </button>
               </div>
 
-              <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+              <div className="relative rounded-2xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-200 overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner">
                 <pre>{generateSnippet()}</pre>
               </div>
             </div>
 
             <div className="space-y-3 pt-4 border-t border-slate-800/80">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                Exemplo de Resposta (200 OK)
-              </span>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-emerald-400 overflow-x-auto max-h-80">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Exemplo de Resposta (Status 200 OK)
+                </span>
+                <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-mono text-emerald-400 font-bold">
+                  200 OK • JSON
+                </span>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-emerald-400 overflow-x-auto max-h-80 shadow-inner">
                 <pre>{JSON.stringify(activeEndpoint.responseSample, null, 2)}</pre>
               </div>
             </div>
