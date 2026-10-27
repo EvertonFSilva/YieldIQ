@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { X, Lock, Mail, User, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from './Logo';
 
@@ -49,13 +49,6 @@ export const AuthModal: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleFillDemoAdmin = (): void => {
-    setIdentifier('admin');
-    setPassword('AdminYieldIQ2026!');
-    setActiveTab('login');
-    setErrorMessage(null);
   };
 
   return (
@@ -204,23 +197,6 @@ export const AuthModal: React.FC = () => {
             )}
           </button>
         </form>
-
-        <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            <span>Autenticação segura JWT</span>
-          </div>
-
-          {activeTab === 'login' && (
-            <button
-              type="button"
-              onClick={handleFillDemoAdmin}
-              className="text-xs text-emerald-400 hover:underline font-mono"
-            >
-              Preencher Admin
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

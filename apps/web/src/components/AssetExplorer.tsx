@@ -262,8 +262,8 @@ export const AssetExplorer: React.FC = () => {
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
             >
-              <option value="asc" className="bg-slate-900 text-slate-200">Ticker (A-Z)</option>
-              <option value="desc" className="bg-slate-900 text-slate-200">Ticker (Z-A)</option>
+              <option value="asc" className="bg-slate-900 text-slate-200">Código do Ativo (A-Z)</option>
+              <option value="desc" className="bg-slate-900 text-slate-200">Código do Ativo (Z-A)</option>
             </select>
           </div>
 
@@ -378,7 +378,7 @@ export const AssetExplorer: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold">
-                  <th className="p-4">Ticker</th>
+                  <th className="p-4">Código do Ativo</th>
                   <th className="p-4">Nome do Ativo</th>
                   <th className="p-4">Tipo</th>
                   <th className="p-4">Segmento</th>

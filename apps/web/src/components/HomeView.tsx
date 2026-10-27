@@ -29,40 +29,40 @@ export const HomeView: React.FC<HomeViewProperties> = ({ onSelectTab }) => {
       name: 'Maxi Renda FII',
       type: 'FII',
       segment: 'Papel / CRI',
-      lastPrice: 'R$ 10,24',
-      yieldPct: '12,8% a.a.'
+      lastPrice: 'R$ 9,11',
+      yieldPct: '12,95% a.a.'
     },
     {
       ticker: 'HGLG11',
       name: 'CSHG Logística FII',
       type: 'FII',
       segment: 'Logística',
-      lastPrice: 'R$ 162,50',
-      yieldPct: '8,9% a.a.'
+      lastPrice: 'R$ 151,70',
+      yieldPct: '8,85% a.a.'
     },
     {
       ticker: 'XPML11',
       name: 'XP Malls FII',
       type: 'FII',
       segment: 'Shopping Centers',
-      lastPrice: 'R$ 114,80',
-      yieldPct: '9,4% a.a.'
+      lastPrice: 'R$ 102,40',
+      yieldPct: '9,20% a.a.'
     },
     {
       ticker: 'KNCA11',
       name: 'Kinea Crédito Agro',
       type: 'FIAGRO',
       segment: 'Crédito Agro',
-      lastPrice: 'R$ 101,20',
-      yieldPct: '13,5% a.a.'
+      lastPrice: 'R$ 100,50',
+      yieldPct: '13,10% a.a.'
     },
     {
       ticker: 'JURO11',
       name: 'Sparta Infra FIC FI-Infra',
       type: 'FI_INFRA',
       segment: 'Infraestrutura',
-      lastPrice: 'R$ 103,15',
-      yieldPct: '14,2% a.a.'
+      lastPrice: 'R$ 102,80',
+      yieldPct: '13,90% a.a.'
     }
   ];
 

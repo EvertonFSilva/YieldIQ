@@ -6,7 +6,8 @@ import {
   RefreshCw,
   FileText,
   BarChart3,
-  DollarSign
+  DollarSign,
+  Clock
 } from 'lucide-react';
 import { assetService } from '../services/apiClient';
 import { AssetSummaryData, AssetItem, DocumentItem } from '../types';
@@ -74,6 +75,21 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
 
   if (!asset) return null;
 
+  const formatLastUpdated = (dateString?: string): string => {
+    try {
+      const date = dateString ? new Date(dateString) : new Date();
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Hoje';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn">
       <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8 shadow-2xl space-y-6">
@@ -106,7 +122,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
             onClick={() => setActiveTab('overview')}
             className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition ${
               activeTab === 'overview'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -118,7 +134,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
             onClick={() => setActiveTab('dividends')}
             className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition ${
               activeTab === 'dividends'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -130,7 +146,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
             onClick={() => setActiveTab('documents')}
             className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition ${
               activeTab === 'documents'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -151,24 +167,32 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
           </div>
         ) : summaryData ? (
           <div className="space-y-6">
+            <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950/40 px-4 py-2 rounded-xl border border-slate-800/80">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Última atualização da cotação: <strong className="text-white">{formatLastUpdated(summaryData.priceQuote?.lastUpdatedAt)}</strong></span>
+              </div>
+              <span className="text-[11px] text-slate-500">Fonte: Yahoo Finance &bull; B3 Oficial</span>
+            </div>
+
             {activeTab === 'overview' && (
               <div className="space-y-6 animate-fadeIn">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                     <span className="text-[11px] font-medium text-slate-400">Preço Atual</span>
                     <p className="mt-1 text-2xl font-extrabold text-white">
-                      R$ {summaryData.priceQuote.currentPrice.toFixed(2)}
+                      R$ {summaryData.priceQuote?.currentPrice ? summaryData.priceQuote.currentPrice.toFixed(2) : '0,00'}
                     </p>
                     <div className="mt-1 text-[11px] flex items-center gap-1 font-semibold">
                       <span
                         className={
-                          (summaryData.priceQuote.dailyVariationPercentage || 0) >= 0
+                          (summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0
                             ? 'text-emerald-400'
                             : 'text-rose-400'
                         }
                       >
-                        {(summaryData.priceQuote.dailyVariationPercentage || 0) >= 0 ? '+' : ''}
-                        {(summaryData.priceQuote.dailyVariationPercentage || 0).toFixed(2)}%
+                        {(summaryData.priceQuote?.dailyVariationPercentage || 0) >= 0 ? '+' : ''}
+                        {(summaryData.priceQuote?.dailyVariationPercentage || 0).toFixed(2)}%
                       </span>
                       <span className="text-slate-500">hoje</span>
                     </div>
@@ -177,23 +201,23 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                     <span className="text-[11px] font-medium text-slate-400">Dividend Yield (12M)</span>
                     <p className="mt-1 text-2xl font-extrabold text-emerald-400">
-                      {summaryData.trailingDividendYieldPercentage.toFixed(2)}%
+                      {summaryData.trailingDividendYieldPercentage ? summaryData.trailingDividendYieldPercentage.toFixed(2) : '0,00'}%
                     </p>
                     <div className="mt-1 text-[11px] text-slate-500">
-                      Soma 12M: R$ {summaryData.annualDividendSum.toFixed(2)}
+                      Soma 12M: R$ {summaryData.annualDividendSum ? summaryData.annualDividendSum.toFixed(2) : '0,00'}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                     <span className="text-[11px] font-medium text-slate-400">Preço Teto Bazin (6%)</span>
                     <p className="mt-1 text-2xl font-extrabold text-teal-400">
-                      R$ {summaryData.bazinCeilingPriceSixPercent.toFixed(2)}
+                      R$ {summaryData.bazinCeilingPriceSixPercent ? summaryData.bazinCeilingPriceSixPercent.toFixed(2) : '0,00'}
                     </p>
                     <div className="mt-1 text-[11px] text-slate-500">
                       Margem:{' '}
-                      {summaryData.priceQuote.currentPrice > 0
+                      {summaryData.priceQuote?.currentPrice && summaryData.bazinCeilingPriceSixPercent
                         ? (((summaryData.bazinCeilingPriceSixPercent / summaryData.priceQuote.currentPrice) - 1) * 100).toFixed(1)
-                        : 0}
+                        : '0.0'}
                       %
                     </div>
                   </div>
@@ -201,9 +225,9 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                     <span className="text-[11px] font-medium text-slate-400">Preço Teto Gordon</span>
                     <p className="mt-1 text-2xl font-extrabold text-cyan-400">
-                      R$ {summaryData.gordonCeilingPrice.toFixed(2)}
+                      R$ {summaryData.gordonCeilingPrice ? summaryData.gordonCeilingPrice.toFixed(2) : '0,00'}
                     </p>
-                    <div className="mt-1 text-[11px] text-slate-500">Modelo DDM de fluxo</div>
+                    <div className="mt-1 text-[11px] text-slate-500">Modelo DDM descontado</div>
                   </div>
                 </div>
 
@@ -215,26 +239,26 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                     <div>
                       <span className="text-slate-500 block">Fechamento Anterior</span>
                       <span className="font-semibold text-slate-200">
-                        R$ {summaryData.priceQuote.previousClose.toFixed(2)}
+                        R$ {summaryData.priceQuote?.previousClose ? summaryData.priceQuote.previousClose.toFixed(2) : '-'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">Abertura</span>
                       <span className="font-semibold text-slate-200">
-                        R$ {summaryData.priceQuote.openingPrice?.toFixed(2) || '-'}
+                        R$ {summaryData.priceQuote?.openingPrice ? summaryData.priceQuote.openingPrice.toFixed(2) : '-'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">Faixa do Dia (Mín - Máx)</span>
                       <span className="font-semibold text-slate-200">
-                        R$ {summaryData.priceQuote.dayLowPrice?.toFixed(2) || '-'} - R${' '}
-                        {summaryData.priceQuote.dayHighPrice?.toFixed(2) || '-'}
+                        R$ {summaryData.priceQuote?.dayLowPrice ? summaryData.priceQuote.dayLowPrice.toFixed(2) : '-'} - R${' '}
+                        {summaryData.priceQuote?.dayHighPrice ? summaryData.priceQuote.dayHighPrice.toFixed(2) : '-'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">Volume Financeiro</span>
                       <span className="font-semibold text-slate-200">
-                        {summaryData.priceQuote.tradingVolume
+                        {summaryData.priceQuote?.tradingVolume
                           ? summaryData.priceQuote.tradingVolume.toLocaleString('pt-BR')
                           : '-'}
                       </span>
@@ -251,7 +275,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                     Distribuições de Rendimentos Registradas na B3
                   </span>
                   <span className="text-xs text-slate-500 font-mono">
-                    Total em 12M: R$ {summaryData.annualDividendSum.toFixed(2)}
+                    Total em 12M: R$ {summaryData.annualDividendSum ? summaryData.annualDividendSum.toFixed(2) : '0,00'}
                   </span>
                 </div>
 
@@ -266,7 +290,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {summaryData.recentDividends.length === 0 ? (
+                      {!summaryData.recentDividends || summaryData.recentDividends.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="p-6 text-center text-slate-500">
                             Nenhum dividendo registrado recentemente.
@@ -355,7 +379,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProperties> = ({
         ) : null}
 
         <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-          <span className="text-xs text-slate-500">Dados oficiais B3 &bull; CVM FNET</span>
+          <span className="text-xs text-slate-500">Dados oficiais B3 &bull; CVM FNET &bull; Tesouro Nacional</span>
           <button
             onClick={onClose}
             className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition"

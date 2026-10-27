@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, Shield, Key, BookOpen } from 'lucide-react';
+import { Copy, Check, Shield, Key, BookOpen, FileSpreadsheet, Code2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface ApiEndpointDefinition {
@@ -17,7 +17,7 @@ interface ApiEndpointDefinition {
 export const ApiDocsView: React.FC = () => {
   const { currentUser } = useAuth();
   const [selectedEndpointId, setSelectedEndpointId] = useState<string>('list-assets');
-  const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'typescript' | 'python'>('curl');
+  const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'typescript' | 'python' | 'sheets' | 'xml'>('curl');
   const [copiedCode, setCopiedCode] = useState(false);
 
   const activeApiKey = currentUser?.apiKey || 'sua_chave_api_aqui';
@@ -72,13 +72,13 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: {
           ticker: 'HGLG11',
-          currentPrice: 162.5,
-          previousClose: 161.8,
-          openingPrice: 162.0,
-          dayHighPrice: 163.2,
-          dayLowPrice: 161.5,
+          currentPrice: 151.7,
+          previousClose: 151.2,
+          openingPrice: 151.4,
+          dayHighPrice: 152.3,
+          dayLowPrice: 150.9,
           tradingVolume: 245000,
-          dailyVariationPercentage: 0.43,
+          dailyVariationPercentage: 0.33,
           lastUpdatedAt: new Date().toISOString()
         }
       }
@@ -98,11 +98,11 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: [
           {
-            dividendValue: 0.95,
-            formattedValue: 'R$ 0,95',
-            baseRecordDate: '2026-10-15',
-            paymentDistributionDate: '2026-10-22',
-            documentSourceUrl: 'https://fnet.bmfbovespa.com.br/...'
+            rate: 1.1,
+            formattedValue: 'R$ 1,10',
+            baseRecordDate: '15/10/2026',
+            paymentDistributionDate: '22/10/2026',
+            documentSourceUrl: 'https://fnet.bmfbovespa.com.br/fnet/publico/exibirDocumento?id=123'
           }
         ]
       }
@@ -111,22 +111,22 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-documents',
       method: 'GET',
       path: '/assets/documents/:ticker',
-      title: 'Fatos Relevantes & Informes CVM',
-      description: 'Consulta comunicados oficiais, relatórios gerenciais e fatos relevantes protocolados no FNET da B3/CVM.',
+      title: 'Fatos Relevantes CVM (FNET)',
+      description: 'Consulta comunicados oficiais, relatórios gerenciais e fatos relevantes protocolados na Comissão de Valores Mobiliários.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo' },
-        { name: 'category', type: 'string', required: false, description: 'Categoria de documentos (all, material_fact, report)' }
+        { name: 'category', type: 'string', required: false, description: 'Filtro por categoria do documento' }
       ],
       responseSample: {
         success: true,
         data: [
           {
-            documentIdentifier: 1245890,
-            referenceDate: '2026-10-20',
-            documentDescription: 'Relatório Gerencial Mensal - Setembro 2026',
-            documentCategoryName: 'Relatório Gerencial',
-            documentDownloadUrl: 'https://fnet.bmfbovespa.com.br/fnet/publico/downloadDocumento?id=1245890'
+            documentIdentifier: 894123,
+            documentCategoryName: 'Fato Relevante',
+            documentDescription: 'Aquisição de Imóvel Logístico em Extrema/MG',
+            referenceDate: '10/10/2026',
+            documentDownloadUrl: 'https://fnet.bmfbovespa.com.br/fnet/publico/downloadDocumento?id=894123'
           }
         ]
       }
@@ -135,8 +135,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-summary',
       method: 'GET',
       path: '/assets/summary/:ticker',
-      title: 'Sumário & Métricas de Valuation',
-      description: 'Calcula o somatório de proventos de 12 meses, Dividend Yield trailing e preços-teto segundo os modelos de Décio Bazin e Gordon.',
+      title: 'Resumo Completo com Valuation',
+      description: 'Agrega cotação em tempo real, proventos dos últimos 12 meses, Preço Teto Bazin (6%) e Modelo de Desconto de Dividendos de Gordon.',
       isProtected: false,
       queryParams: [
         { name: 'ticker', type: 'path', required: true, description: 'Código do ativo' }
@@ -145,36 +145,57 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: {
           ticker: 'MXRF11',
-          annualDividendSum: 1.25,
-          trailingDividendYieldPercentage: 12.2,
-          bazinCeilingPriceSixPercent: 20.83,
-          gordonCeilingPrice: 15.62,
+          name: 'MAXI RENDA FII',
+          assetType: 'FII',
           priceQuote: {
-            currentPrice: 10.24,
-            dailyVariationPercentage: 0.2
-          }
+            currentPrice: 9.11,
+            previousClose: 9.12,
+            dayHighPrice: 9.15,
+            dayLowPrice: 9.09,
+            tradingVolume: 8425000,
+            dailyVariationPercentage: -0.11,
+            lastUpdatedAt: new Date().toISOString()
+          },
+          annualDividendSum: 1.18,
+          trailingDividendYieldPercentage: 12.95,
+          bazinCeilingPriceSixPercent: 19.67,
+          gordonCeilingPrice: 11.8,
+          recentDividends: [
+            {
+              rate: 0.09,
+              formattedValue: 'R$ 0,09',
+              baseRecordDate: '15/10/2026',
+              paymentDistributionDate: '24/10/2026'
+            }
+          ]
         }
       }
     },
     {
       id: 'get-treasury',
       method: 'GET',
-      path: '/treasury/bonds',
-      title: 'Taxas do Tesouro Direto',
-      description: 'Obtém a tabela completa de títulos públicos federais com rentabilidade anual, preço unitário, aporte mínimo e vencimento.',
+      path: '/treasury',
+      title: 'Títulos do Tesouro Direto',
+      description: 'Retorna a grade completa de títulos públicos federais (Selic, Prefixado, IPCA+, RendA+, Educa+) com taxas anuais de compra e preços unitários.',
       isProtected: false,
       responseSample: {
         success: true,
         data: [
           {
-            bondKey: 'Tesouro IPCA+ 2029',
-            bondName: 'Tesouro IPCA+ 2029',
-            indexerName: 'IPCA',
-            profitabilityRate: 6.35,
-            profitabilityRateRaw: 'IPCA + 6,35%',
-            unitPrice: 3240.5,
-            minimumInvestmentAmount: 32.4,
-            maturityFormattedDate: '15/05/2029'
+            bondName: 'Tesouro Selic 2029',
+            indexType: 'SELIC',
+            maturityDate: '01/03/2029',
+            annualInterestRatePercentage: 11.75,
+            unitPrice: 14850.2,
+            minimumInvestmentAmount: 148.5
+          },
+          {
+            bondName: 'Tesouro IPCA+ 2035',
+            indexType: 'IPCA',
+            maturityDate: '15/05/2035',
+            annualInterestRatePercentage: 6.42,
+            unitPrice: 2210.8,
+            minimumInvestmentAmount: 44.21
           }
         ]
       }
@@ -183,8 +204,8 @@ export const ApiDocsView: React.FC = () => {
       id: 'get-alert-rules',
       method: 'GET',
       path: '/alerts/rules',
-      title: 'Listar Regras de Alertas',
-      description: 'Retorna todas as regras de monitoramento configuradas pelo usuário logado.',
+      title: 'Minhas Regras de Alerta',
+      description: 'Retorna a lista de regras de alertas no WhatsApp configuradas pelo usuário autenticado.',
       isProtected: true,
       responseSample: {
         success: true,
@@ -192,8 +213,8 @@ export const ApiDocsView: React.FC = () => {
           {
             id: 'rule_827361a9',
             ticker: 'HGLG11',
-            alertPriceMin: 155.0,
-            alertPriceMax: 170.0,
+            alertPriceMin: 145.0,
+            alertPriceMax: 160.0,
             alertPriceChangePct: 2.0,
             notifyDividend: true,
             notifyMaterialFact: true,
@@ -207,12 +228,12 @@ export const ApiDocsView: React.FC = () => {
       method: 'POST',
       path: '/alerts/rules',
       title: 'Criar / Atualizar Regra de Alerta',
-      description: 'Cadastra ou edita uma regra de monitoramento no WhatsApp para um determinado ticker.',
+      description: 'Cadastra ou edita uma regra de monitoramento no WhatsApp para um determinado ativo.',
       isProtected: true,
       bodySample: {
         ticker: 'MXRF11',
-        minimumTargetPrice: 9.8,
-        maximumTargetPrice: 10.5,
+        minimumTargetPrice: 8.8,
+        maximumTargetPrice: 10.2,
         variationPercentageThreshold: 1.5,
         isPriceAlertEnabled: true,
         isDividendAlertEnabled: true,
@@ -237,11 +258,11 @@ export const ApiDocsView: React.FC = () => {
         success: true,
         data: {
           id: '83427eb7-7daf-49c9-8bde-c4ee94ac1981',
-          username: 'admin',
-          email: 'admin.yieldiq@gmail.com',
+          username: 'investidor',
+          email: 'investidor@yieldiq.com.br',
           apiKey: 'yieldiq_7bc3a617cf5d8fdb1386f430709b97221e56dc15ae7c5a8b',
-          role: 'ADMINISTRATOR',
-          alertQuota: 100,
+          role: 'USER',
+          alertQuota: 20,
           isWhatsAppEnabled: true
         }
       }
@@ -275,14 +296,6 @@ export const ApiDocsView: React.FC = () => {
     }
 
     if (selectedLanguage === 'typescript') {
-      const optionsObject: Record<string, any> = {
-        method: activeEndpoint.method,
-        headers: headersList
-      };
-      if (activeEndpoint.bodySample) {
-        optionsObject.body = 'JSON.stringify(bodyPayload)';
-      }
-
       return `const response = await fetch("${fullUrl}", {
   method: "${activeEndpoint.method}",
   headers: {
@@ -296,7 +309,8 @@ const result = await response.json();
 console.log(result.data);`;
     }
 
-    return `import requests
+    if (selectedLanguage === 'python') {
+      return `import requests
 
 url = "${fullUrl}"
 headers = {
@@ -312,6 +326,61 @@ response = requests.${activeEndpoint.method.toLowerCase()}(url, headers=headers,
 }
 
 print(response.json())`;
+    }
+
+    if (selectedLanguage === 'sheets') {
+      return `=== GOOGLE SHEETS ===
+1. Fórmula direta na célula (Retorna JSON ou dados tabulares):
+=IMPORTDATA("${fullUrl}")
+
+2. Função Customizada via Google Apps Script (Extensões > Apps Script):
+function YIELDIQ_DATA(endpoint) {
+  const url = "${apiBaseUrl}" + endpoint;
+  const options = {
+    headers: {
+      "X-API-TOKEN": "${activeApiKey}"
+    }
+  };
+  const response = UrlFetchApp.fetch(url, options);
+  const json = JSON.parse(response.getContentText());
+  return json.data.priceQuote ? json.data.priceQuote.currentPrice : json.data.currentPrice;
+}
+Uso na planilha: =YIELDIQ_DATA("/assets/price/MXRF11")
+
+=== MICROSOFT EXCEL (Power Query / M) ===
+1. Guia Dados > Obter Dados > De Outras Fontes > Consulta em Branco > Editor Avançado:
+let
+    Fonte = Json.Document(Web.Contents("${fullUrl}", [
+        Headers = [
+            #"Content-Type" = "application/json"${activeEndpoint.isProtected ? `,\n            #"X-API-TOKEN" = "${activeApiKey}"` : ''}
+        ]
+    ])),
+    Dados = Fonte[data]
+in
+    Dados`;
+    }
+
+    return `<!-- Requisição com cabeçalho de negociação XML -->
+curl -X ${activeEndpoint.method} "${fullUrl}" \\
+  -H "Accept: application/xml" \\
+  -H "Content-Type: application/xml"${activeEndpoint.isProtected ? ` \\\n  -H "X-API-TOKEN: ${activeApiKey}"` : ''}
+
+<!-- Exemplo de Resposta XML Estruturada (200 OK) -->
+<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <success>true</success>
+  <data>
+    <asset>MXRF11</asset>
+    <name>MAXI RENDA FII</name>
+    <currentPrice>9.11</currentPrice>
+    <previousClose>9.12</previousClose>
+    <dayHighPrice>9.15</dayHighPrice>
+    <dayLowPrice>9.09</dayLowPrice>
+    <dailyVariationPercentage>-0.11</dailyVariationPercentage>
+    <tradingVolume>8425000</tradingVolume>
+    <lastUpdatedAt>${new Date().toISOString()}</lastUpdatedAt>
+  </data>
+</response>`;
   };
 
   const handleCopyCode = (): void => {
@@ -330,7 +399,7 @@ print(response.json())`;
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Documentação da API REST</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Endpoints de alta velocidade para consulta de cotações, proventos, comunicados e regras de alertas
+            Endpoints de alta velocidade para cotações, proventos, FNET CVM, Tesouro Direto, Planilhas e automações
           </p>
         </div>
 
@@ -359,13 +428,13 @@ print(response.json())`;
                 onClick={() => setSelectedEndpointId(endpoint.id)}
                 className={`w-full text-left rounded-xl p-3 text-xs transition flex items-center justify-between ${
                   selectedEndpointId === endpoint.id
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-semibold'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-white border border-transparent'
+                    ? 'bg-slate-800 text-white font-semibold border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-bold ${
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-bold shrink-0 ${
                       endpoint.method === 'GET'
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : endpoint.method === 'POST'
@@ -428,7 +497,7 @@ print(response.json())`;
             {activeEndpoint.queryParams && activeEndpoint.queryParams.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-slate-800/80">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                  Parâmetros
+                  Parâmetros da Consulta
                 </span>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -462,11 +531,11 @@ print(response.json())`;
             )}
 
             <div className="space-y-3 pt-4 border-t border-slate-800/80">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1 rounded-lg bg-slate-950 p-1 border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-950 p-1 border border-slate-800">
                   <button
                     onClick={() => setSelectedLanguage('curl')}
-                    className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedLanguage === 'curl' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -474,7 +543,7 @@ print(response.json())`;
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('typescript')}
-                    className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedLanguage === 'typescript' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -482,17 +551,35 @@ print(response.json())`;
                   </button>
                   <button
                     onClick={() => setSelectedLanguage('python')}
-                    className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedLanguage === 'python' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     Python
                   </button>
+                  <button
+                    onClick={() => setSelectedLanguage('sheets')}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      selectedLanguage === 'sheets' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    <span>Planilhas (Sheets / Excel)</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedLanguage('xml')}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      selectedLanguage === 'xml' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Code2 className="h-3.5 w-3.5" />
+                    <span>XML</span>
+                  </button>
                 </div>
 
                 <button
                   onClick={handleCopyCode}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                  className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
                 >
                   {copiedCode ? (
                     <>
@@ -508,7 +595,7 @@ print(response.json())`;
                 </button>
               </div>
 
-              <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-200 overflow-x-auto">
+              <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
                 <pre>{generateSnippet()}</pre>
               </div>
             </div>

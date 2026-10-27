@@ -8,13 +8,11 @@ export type ActiveNavigationTab = 'home' | 'assets' | 'treasury' | 'alerts' | 'd
 interface NavbarProperties {
   activeTab: ActiveNavigationTab;
   onSelectTab: (selectedTab: ActiveNavigationTab) => void;
-  isWhatsAppActive?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProperties> = ({
   activeTab,
-  onSelectTab,
-  isWhatsAppActive = true
+  onSelectTab
 }) => {
   const { currentUser, openAuthModal, logout } = useAuth();
   const isAdmin = currentUser?.role === 'ADMINISTRATOR' || (currentUser as any)?.privilege === 'admin';
@@ -104,17 +102,6 @@ export const Navbar: React.FC<NavbarProperties> = ({
           </nav>
 
           <div className="flex items-center gap-2.5">
-            <div className="hidden lg:flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1 text-xs">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isWhatsAppActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                }`}
-              />
-              <span className="text-slate-300 font-medium">
-                {isWhatsAppActive ? 'WhatsApp Ativo' : 'WhatsApp Desconectado'}
-              </span>
-            </div>
-
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button
